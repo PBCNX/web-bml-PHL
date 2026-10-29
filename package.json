@@ -1,0 +1,56 @@
+{
+  "name": "web-bml",
+  "version": "1.1.1",
+  "main": "./dist/client/bml_browser.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "build:iife": "node tools/build-iife.mjs",
+    "watch": "tsc -w",
+    "test": "node --test"
+  },
+  "files": [
+    "client",
+    "server",
+    "es2",
+    "dist",
+    "fonts/*.woff2",
+    "fonts/*.txt",
+    "fonts/README.md",
+    "fonts/package.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/client/bml_browser.d.ts",
+      "default": "./dist/client/bml_browser.js"
+    },
+    "./entity-parser": {
+      "types": "./dist/server/entity_parser.d.ts",
+      "default": "./dist/server/entity_parser.js"
+    },
+    "./ts": {
+      "types": "./dist/server/decode_ts.d.ts",
+      "default": "./dist/server/decode_ts.js"
+    },
+    "./protocol": {
+      "types": "./dist/server/ws_api.d.ts",
+      "default": "./dist/server/ws_api.js"
+    }
+  },
+  "dependencies": {
+    "arib-mmt-tlv-ts": "^2.0.2",
+    "crc-32": "^1.2.2",
+    "css": "https://github.com/otya128/reworkcss-css/releases/download/v3.0.2/css-3.0.2.tgz",
+    "fast-xml-parser": "^4.0.11",
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "@types/css": "^0.0.38",
+    "esbuild": "^0.25.0",
+    "typescript": "^6.0.3"
+  },
+  "workspaces": [
+    "example",
+    "fonts"
+  ]
+}

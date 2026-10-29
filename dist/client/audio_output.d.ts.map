@@ -1,0 +1,1 @@
+{"version":3,"file":"audio_output.d.ts","sourceRoot":"","sources":["../../client/audio_output.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;GAWG;AACH,MAAM,MAAM,WAAW,GAAG;IACtB,gFAAgF;IAChF,IAAI,CAAC,CAAC,IAAI,EAAE,UAAU,GAAG,OAAO,CAAC;IACjC,iFAAiF;IACjF,QAAQ,CAAC,CAAC,OAAO,EAAE,MAAM,GAAG,OAAO,CAAC;CACvC,CAAC"}

@@ -1,0 +1,208 @@
+// C13 — the font the PH pages get, measured off the woff2 the engine ships.
+//
+// Two properties matter, and they are different properties:
+//
+//   1. monospaced Latin, because PH BML lays text out with spaces and the engine's cell model is
+//      half-width ASCII — measured here as every ASCII advance equal;
+//   2. the PH character set (Annex 8 Table A8-1-2: Latin-1 + Ñ/ñ + the ARIB symbol block), because a
+//      face that cannot draw ñ hands that character to a fallback font, which changes both the glyph
+//      and the advance in the middle of a label.
+//
+// Measured 2026-10-27: all three faces the engine ships are monospaced at 0.5 em for ASCII, and none
+// of them has a glyph for ñ, Ñ, é or á. The first test passes; the second is `todo` so the gap is
+// visible in `npm test` without failing a build that has not chosen a font yet.
+//
+// The parser is deliberately local: Node's Brotli plus the woff2 table directory is enough to read
+// cmap and hmtx, and a test must not depend on a font library that a clean clone would have to
+// install.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { brotliDecompressSync } from "node:zlib";
+
+const KNOWN_TAGS = [
+    "cmap", "head", "hhea", "hmtx", "maxp", "name", "OS/2", "post", "cvt ", "fpgm", "glyf", "loca",
+    "prep", "CFF ", "VORG", "EBDT", "EBLC", "gasp", "hdmx", "kern", "LTSH", "PCLT", "VDMX", "vhea",
+    "vmtx", "BASE", "GDEF", "GPOS", "GSUB", "EBSC", "JSTF", "MATH", "CBDT", "CBLC", "COLR", "CPAL",
+    "SVG ", "sbix", "acnt", "avar", "bdat", "bloc", "bsln", "cvar", "fdsc", "feat", "fmtx", "fvar",
+    "gvar", "hsty", "just", "lcar", "mort", "morx", "opbd", "prop", "trak", "Zapf", "Silf", "Glat",
+    "Gloc", "Feat", "Sill",
+];
+
+function readBase128(buf, pos) {
+    let value = 0;
+    for (let i = 0; i < 5; i++) {
+        const byte = buf[pos++];
+        value = (value << 7) | (byte & 0x7f);
+        if (!(byte & 0x80)) {
+            return [value, pos];
+        }
+    }
+    throw new Error("UIntBase128 too long");
+}
+
+function parseWoff2(buf) {
+    if (buf.toString("latin1", 0, 4) !== "wOF2") {
+        throw new Error("not WOFF2");
+    }
+    const numTables = buf.readUInt16BE(12);
+    const totalCompressedSize = buf.readUInt32BE(20);
+    let pos = 48;
+    const tables = [];
+    for (let i = 0; i < numTables; i++) {
+        const flags = buf[pos++];
+        const tagIndex = flags & 0x3f;
+        const transformVersion = (flags >> 6) & 0x03;
+        const tag = tagIndex === 63 ? buf.toString("latin1", pos, (pos += 4)) : KNOWN_TAGS[tagIndex];
+        let origLength;
+        [origLength, pos] = readBase128(buf, pos);
+        let transformLength = null;
+        const transformed = (tag === "glyf" || tag === "loca")
+            ? transformVersion !== 3
+            : (tag === "hmtx" && transformVersion === 1);
+        if (transformed) {
+            [transformLength, pos] = readBase128(buf, pos);
+        }
+        tables.push({ tag, origLength, transformLength, transformed });
+    }
+    const data = brotliDecompressSync(buf.subarray(pos, pos + totalCompressedSize));
+    const out = new Map();
+    let off = 0;
+    for (const t of tables) {
+        const len = t.transformed ? t.transformLength : t.origLength;
+        out.set(t.tag, data.subarray(off, off + len));
+        off += len;
+    }
+    return out;
+}
+
+function format4Subtable(cmap) {
+    const count = cmap.readUInt16BE(2);
+    for (let i = 0; i < count; i++) {
+        const off = cmap.readUInt32BE(4 + i * 8 + 4);
+        if (cmap.readUInt16BE(off) === 4) {
+            return off;
+        }
+    }
+    return null;
+}
+
+function glyphFor(cmap, sub, code) {
+    const segX2 = cmap.readUInt16BE(sub + 6);
+    const endBase = sub + 14;
+    const startBase = endBase + segX2 + 2;
+    const deltaBase = startBase + segX2;
+    const rangeBase = deltaBase + segX2;
+    for (let s = 0; s < segX2 / 2; s++) {
+        const end = cmap.readUInt16BE(endBase + s * 2);
+        const start = cmap.readUInt16BE(startBase + s * 2);
+        if (code < start || code > end) {
+            continue;
+        }
+        const delta = cmap.readInt16BE(deltaBase + s * 2);
+        const rangeOff = cmap.readUInt16BE(rangeBase + s * 2);
+        if (rangeOff === 0) {
+            return (code + delta) & 0xffff;
+        }
+        const glyph = cmap.readUInt16BE(rangeBase + s * 2 + rangeOff + (code - start) * 2);
+        return glyph === 0 ? 0 : (glyph + delta) & 0xffff;
+    }
+    return 0;
+}
+
+function fontMetrics(file) {
+    const tables = parseWoff2(readFileSync(file));
+    const { head, hhea, hmtx, cmap } = Object.fromEntries(
+        ["head", "hhea", "hmtx", "cmap"].map((tag) => [tag, tables.get(tag)]));
+    const unitsPerEm = head.readUInt16BE(18);
+    const numberOfHMetrics = hhea.readUInt16BE(34);
+    const sub = format4Subtable(cmap);
+    const glyph = (code) => glyphFor(cmap, sub, code);
+    const advance = (code) => {
+        const g = glyph(code);
+        if (g === 0) {
+            return null;
+        }
+        return g < numberOfHMetrics ? hmtx.readUInt16BE(g * 4) : hmtx.readUInt16BE((numberOfHMetrics - 1) * 4);
+    };
+    return { unitsPerEm, glyph, advance };
+}
+
+const fontDir = join(import.meta.dirname, "..", "fonts");
+const faces = readdirSync(fontDir).filter((name) => name.endsWith(".woff2"));
+
+// The faces a host may use as the primary BML face must be ASCII-monospaced. PHLatin and MPLUS1P are
+// fallbacks only — M PLUS 1p is proportional Latin by design, reached only for ranges the primary
+// lacks — so they are checked separately below.
+const bmlFaces = faces.filter((name) => name.startsWith("Kosugi") || name.startsWith("MPLUS1Code"));
+
+test("every BML face is monospaced for ASCII", () => {
+    assert.ok(bmlFaces.length > 0);
+    for (const face of bmlFaces) {
+        const { unitsPerEm, advance } = fontMetrics(join(fontDir, face));
+        const widths = new Set();
+        // The printable ASCII range, not a sample: a face is only monospaced if all of it is.
+        for (let code = 0x20; code <= 0x7e; code++) {
+            const w = advance(code);
+            assert.notEqual(w, null, `${face}: no glyph for U+${code.toString(16).toUpperCase()}`);
+            widths.add(w);
+        }
+        assert.equal(widths.size, 1, `${face}: ASCII advances differ (${[...widths].join(", ")})`);
+        assert.equal([...widths][0], unitsPerEm / 2, `${face}: ASCII cell is not half an em`);
+    }
+});
+
+test("the PH Latin fallback covers the accented set in the same half-em cell", () => {
+    // Annex 8 Table A8-1-2: Latin-1 + Ñ/ñ. These are exactly the characters the BML faces lack
+    // (measured: 3 of 64 Latin-1 letters in KosugiMaru), so they are what the fallback exists for.
+    const required = [0xf1, 0xd1, 0xe9, 0xe1, 0xfa, 0xf3, 0xed, 0xfc, 0xbf, 0xa1, 0xba, 0xaa];
+    const { unitsPerEm, glyph, advance } = fontMetrics(join(fontDir, "PHLatin-Regular.woff2"));
+    const missing = required.filter((code) => glyph(code) === 0);
+    assert.deepEqual(missing, [], `PHLatin missing ${missing.map((c) => "U+" + c.toString(16).toUpperCase()).join(" ")}`);
+    for (const code of required) {
+        assert.equal(advance(code), unitsPerEm / 2,
+            `PHLatin U+${code.toString(16).toUpperCase()} is not half an em — a fallback char would move the cell`);
+    }
+});
+
+test("the default CSS asks for PH Latin, then the BML fallback, in that order", () => {
+    // The wiring that makes a registered fallback apply to a page's text. If someone drops a step
+    // from the stack, `ñ` or a symbol silently goes back to a proportional system face.
+    for (const file of ["default_css.ts", "default_c_css.ts"]) {
+        const source = readFileSync(join(import.meta.dirname, "..", "client", file), "utf8");
+        assert.match(source, /"丸ゴシック", "PH Latin"/, `${file} no longer names the PH Latin fallback`);
+        assert.match(source, /"PH Latin", "BML Fallback"/, `${file} no longer names the BML fallback after PH Latin`);
+        assert.match(source, /"BML Fallback", "BML Last Resort"/, `${file} no longer names the last-resort face after the fallback`);
+    }
+});
+
+test("the shipped all-M+ pair keeps the BML cells in the ranges it supplies", () => {
+    // The complete M+ configuration: M PLUS 1 Code as the primary (Latin and accents at 0.5 em,
+    // kana and kanji at 1 em) and M PLUS 1p as the fallback (full-width forms at 1 em, half-width
+    // kana at 0.5 em). Both must be exact, or the stack moves text.
+    const code = fontMetrics(join(fontDir, "MPLUS1Code-Regular.woff2"));
+    for (const [what, codes] of [["ASCII", Array.from({ length: 95 }, (_, i) => 0x20 + i)]]) {
+        for (const cp of codes) {
+            assert.equal(code.advance(cp), code.unitsPerEm / 2, `1 Code ${what} U+${cp.toString(16)}`);
+        }
+    }
+    for (const cp of [0xf1, 0xd1, 0xe9, 0xe1]) {
+        assert.equal(code.advance(cp), code.unitsPerEm / 2, `1 Code accent U+${cp.toString(16)}`);
+    }
+    for (const cp of [0x3042, 0x30c6, 0x8996]) {
+        assert.equal(code.advance(cp), code.unitsPerEm, `1 Code kana/kanji U+${cp.toString(16)}`);
+    }
+
+    const p = fontMetrics(join(fontDir, "MPLUS1P-Regular.woff2"));
+    for (const cp of [0xff21, 0xff22, 0xff11]) { // Ａ Ｂ １
+        assert.notEqual(p.glyph(cp), 0, `1p full-width U+${cp.toString(16)} missing`);
+        assert.equal(p.advance(cp), p.unitsPerEm, `1p full-width U+${cp.toString(16)} is not 1 em`);
+    }
+    for (const cp of [0xff71, 0xff72, 0xff73]) { // ｱ ｲ ｳ
+        assert.notEqual(p.glyph(cp), 0, `1p half-width kana U+${cp.toString(16)} missing`);
+        assert.equal(p.advance(cp), p.unitsPerEm / 2, `1p half-width kana U+${cp.toString(16)} is not 0.5 em`);
+    }
+});
+
+

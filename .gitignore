@@ -1,0 +1,6 @@
+node_modules/
+.env
+hls/
+build/
+/example/dist/
+dist-iife/
