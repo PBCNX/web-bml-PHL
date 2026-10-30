@@ -129,6 +129,7 @@ export declare class Resources {
     private readonly ip;
     readonly diagnostics: Diagnostics;
     textCoding: TextCoding;
+    documentCharset: string | null;
     private readonly cachedRemoteResources;
     private readonly remoteResourceRequests;
     private readonly logger;

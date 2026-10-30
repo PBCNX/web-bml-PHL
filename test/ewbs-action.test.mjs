@@ -20,7 +20,7 @@ test("an alert for the receiver's own city is relevant and opens the configured 
 
     assert.equal(decision.relevant, true);
     assert.deepEqual(decision.matchingAreas, [0x426]);
-    assert.equal(decision.ends, false);
+    assert.equal(decision.test, false);
     assert.equal(decision.launch, "/50/2000");
 });
 
@@ -48,12 +48,12 @@ test("a receiver with no area configured is shown every alert", () => {
     assert.equal(decision.launch, "/50/2000");
 });
 
-test("an alert that is ending stands down and opens nothing", () => {
+test("a test emergency warning is flagged and opens nothing", () => {
     const decision = decideEwbsAction(alert([0x426], { startEndFlag: false }), 0x426, "/50/2000");
 
-    assert.equal(decision.ends, true);
+    assert.equal(decision.test, true);
     assert.equal(decision.relevant, true, "it still says which area it ended for");
-    assert.equal(decision.launch, null, "an ending alert must not open a page");
+    assert.equal(decision.launch, null, "a test alert must not open a page");
 });
 
 test("one matching area among several is enough, and the banner names them", () => {

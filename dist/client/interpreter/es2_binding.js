@@ -1188,8 +1188,11 @@ function defineBinaryTableBinding(context, resources, logger) {
             // P7: `.btb` string fields are ARIB text, so they are read by the designation rule and
             // not by the profile's plain decoder. The fallback is that decoder, so every field the
             // rule does not claim decodes byte for byte as before.
-            const fallback = (0, text_1.getTextDecoder)(resources.profile);
-            bt = new BT.BinaryTable(buffer, structure, (input) => (0, arib_text_1.decodeARIBText)(input, fallback, resources.textCoding));
+            // A Japanese document declares EUC-JP or Shift_JIS; its table text must not be guessed as
+            // UTF-8, and its fallback is its own decoder, not the profile default.
+            const fallback = (0, text_1.getDeclaredTextDecoder)(resources.profile, resources.documentCharset);
+            const coding = (0, arib_text_1.tableTextCoding)(resources.documentCharset, resources.textCoding);
+            bt = new BT.BinaryTable(buffer, structure, (input) => (0, arib_text_1.decodeARIBText)(input, fallback, coding));
         }
         catch (error) {
             // 壊れたデータや構造指定は BML 側へ例外を漏らさず null で通知する

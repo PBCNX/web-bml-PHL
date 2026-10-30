@@ -12,8 +12,8 @@ export type EwbsDecision = {
     relevant: boolean;
     /** The areas of this alert that concern it, which is what a banner should name. */
     matchingAreas: number[];
-    /** True when the alert is ending, so a host should stand down. */
-    ends: boolean;
+    /** True when the descriptor says this is a TEST emergency warning: a host must not act on it. */
+    test: boolean;
     /** The document to open, when the host configured one, the alert is starting, and it concerns us. */
     launch: string | null;
 };

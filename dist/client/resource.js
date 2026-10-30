@@ -82,6 +82,9 @@ class Resources {
     // and a host that needs upstream's strict reading sets "arib". The browser copies it from its
     // options at construction; nothing else writes it.
     textCoding = "auto";
+    // P7 follow-up: the charset the current document declared, so table text can stop guessing UTF-8
+    // on a Japanese page. Content sets it on every document load.
+    documentCharset = null;
     // ブラウザのキャッシュとは別に用意 どのみちblob urlの寿命の管理の役目もある
     // とりあえず10 MiB, 400ファイル
     cachedRemoteResources = new CacheMap(400, 1024 * 1024 * 10);

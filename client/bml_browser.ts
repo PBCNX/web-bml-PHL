@@ -516,8 +516,8 @@ export class BMLBrowser {
             // receiver": it must not replace the alert that is, nor clear it on its way out.
             return;
         }
-        this.ewbsAlert = decision.ends ? null : alert;
-        if (decision.ends) {
+        this.ewbsAlert = decision.test ? null : alert;
+        if (decision.test) {
             this.lastLaunchedEwbs = null;
             return;
         }

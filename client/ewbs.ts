@@ -15,8 +15,8 @@ export type EwbsDecision = {
     relevant: boolean;
     /** The areas of this alert that concern it, which is what a banner should name. */
     matchingAreas: number[];
-    /** True when the alert is ending, so a host should stand down. */
-    ends: boolean;
+    /** True when the descriptor says this is a TEST emergency warning: a host must not act on it. */
+    test: boolean;
     /** The document to open, when the host configured one, the alert is starting, and it concerns us. */
     launch: string | null;
 };
@@ -30,12 +30,14 @@ export type EwbsDecision = {
 export function decideEwbsAction(alert: EmergencyInfoMessage, areaCode: number | null, document: EwbsDocument): EwbsDecision {
     const matchingAreas = alert.areaCodes.filter((code) => areaRelevant(code, areaCode ?? 0));
     const relevant = matchingAreas.length > 0;
-    const ends = !alert.startEndFlag;
+    // TR-B14 Vol. 1, Emergency Information Descriptor: start_end_flag 1 is a real emergency warning,
+    // 0 is a TEST one - not an ending. Receivers must not act on a test, but must not stand down either.
+    const test = !alert.startEndFlag;
 
     let launch: string | null = null;
-    if (relevant && !ends && document != null) {
+    if (relevant && !test && document != null) {
         launch = typeof document === "function" ? document(alert) : document;
     }
 
-    return { relevant, matchingAreas, ends, launch };
+    return { relevant, matchingAreas, test, launch };
 }
