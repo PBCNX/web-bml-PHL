@@ -3,6 +3,12 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 1.1.3 — a Japanese page's table text
+
+- `.btb` text on a document that declares EUC-JP or Shift_JIS is no longer guessed as UTF-8: the
+  bytes are often valid UTF-8 too (TBS's 鉄道 is C5 B4 C6 BB, which read as "Ŵƻ"). The table decoder
+  now takes its coding and its fallback from the document's declared charset, so a Japanese page gets
+  the strict reading even when the host passes `textCoding: "auto"`. Philippine pages are unchanged.
 ## 1.1.2 — the TOT is the broadcast local time
 
 - The TOT's time field is the local time (PH standard Table 35: Filipino official time, UTC+8;

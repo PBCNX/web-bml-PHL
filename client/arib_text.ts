@@ -2,7 +2,7 @@ import { decodeEUCJP } from "./euc_jp";
 import { decodeShiftJIS } from "./shift_jis";
 import { jisToUnicodeMap } from "./jis_to_unicode_map";
 import { Profile } from "./resource";
-import { type TextDecodeFunction } from "./text";
+import { normaliseCharset, type TextDecodeFunction } from "./text";
 
 /**
  * P7 — the ARIB text designation rule, and the Philippine lenient reading of it.
@@ -251,4 +251,16 @@ export function decodeARIBText(input: Uint8Array, fallback: TextDecodeFunction, 
         return decodeASCII(input);
     }
     return fallback(input);
+}
+
+/**
+ * The coding to use for `.btb` table text in a document of this charset.
+ *
+ * `auto` guesses UTF-8, which is right for Philippine text but wrong for a Japanese table: EUC-JP
+ * bytes are often valid UTF-8 too (TBS's 鉄道 is C5 B4 C6 BB, which reads as "Ŵƻ"). A document that
+ * declares EUC-JP or Shift_JIS therefore gets the strict reading whatever the host asked for.
+ */
+export function tableTextCoding(documentCharset: string | null | undefined, hostCoding: TextCoding): TextCoding {
+    const name = normaliseCharset(documentCharset);
+    return name === "euc-jp" || name === "shift-jis" ? "arib" : hostCoding;
 }

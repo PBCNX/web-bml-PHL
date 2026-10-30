@@ -12,7 +12,7 @@
 // a regression is readable without the old build.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decodeARIBText } from "../dist/client/arib_text.js";
+import { decodeARIBText, tableTextCoding } from "../dist/client/arib_text.js";
 import { decodeEUCJP } from "../dist/client/euc_jp.js";
 import { decodeShiftJIS } from "../dist/client/shift_jis.js";
 
@@ -135,3 +135,15 @@ test("C1 controls are C280–C29F, and a raw C1 byte is not UTF-8", () => {
 });
 
 
+
+test("EUC-JP bytes that are also valid UTF-8 are not guessed", () => {
+    const euc = (hex) => Uint8Array.from(hex.match(/../g).map((h) => Number.parseInt(h, 16)));
+    const jis = (input) => new TextDecoder("euc-jp").decode(input);
+    assert.equal(decodeARIBText(euc("c5b4c6bb"), jis, "arib"), "鉄道");
+    assert.equal(decodeARIBText(euc("c6bbcfa9"), jis, "arib"), "道路");
+    assert.equal(decodeARIBText(euc("c5b4c6bb"), jis, "auto"), "Ŵƻ");
+    assert.equal(tableTextCoding("EUC-JP", "auto"), "arib");
+    assert.equal(tableTextCoding("Shift_JIS", "auto"), "arib");
+    assert.equal(tableTextCoding("UTF-8", "auto"), "auto");
+    assert.equal(tableTextCoding(null, "auto"), "auto");
+});

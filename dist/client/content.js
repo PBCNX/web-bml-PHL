@@ -714,6 +714,7 @@ class Content {
             this.resources.unlockModules("lockModuleOnMemory");
         }
         this.resources.activeDocument = documentName;
+        this.resources.documentCharset = charsetOf(file);
         await requestAnimationFrameAsync();
         await this.loadDocumentToDOM(this.decodeText(file.data, file));
         this.loadObjects();

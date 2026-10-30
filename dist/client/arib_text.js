@@ -2,10 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getARIBTextFallback = getARIBTextFallback;
 exports.decodeARIBText = decodeARIBText;
+exports.tableTextCoding = tableTextCoding;
 const euc_jp_1 = require("./euc_jp");
 const shift_jis_1 = require("./shift_jis");
 const jis_to_unicode_map_1 = require("./jis_to_unicode_map");
 const resource_1 = require("./resource");
+const text_1 = require("./text");
 const ESC = 0x1b;
 const LS0 = 0x0f;
 const LS1 = 0x0e;
@@ -210,5 +212,16 @@ function decodeARIBText(input, fallback, textCoding = "auto") {
         return decodeASCII(input);
     }
     return fallback(input);
+}
+/**
+ * The coding to use for `.btb` table text in a document of this charset.
+ *
+ * `auto` guesses UTF-8, which is right for Philippine text but wrong for a Japanese table: EUC-JP
+ * bytes are often valid UTF-8 too (TBS's 鉄道 is C5 B4 C6 BB, which reads as "Ŵƻ"). A document that
+ * declares EUC-JP or Shift_JIS therefore gets the strict reading whatever the host asked for.
+ */
+function tableTextCoding(documentCharset, hostCoding) {
+    const name = (0, text_1.normaliseCharset)(documentCharset);
+    return name === "euc-jp" || name === "shift-jis" ? "arib" : hostCoding;
 }
 //# sourceMappingURL=arib_text.js.map
