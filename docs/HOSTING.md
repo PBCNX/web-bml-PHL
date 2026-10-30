@@ -1,4 +1,4 @@
-﻿# Hosting the engine
+# Hosting the engine
 
 What a host wires up. The engine is a library: `new BMLBrowser(options)`, plus a few options.
 
@@ -30,6 +30,15 @@ new BMLBrowser({
 ```
 
 The files ship in `node_modules/web-bml/fonts/`; copy the ones you register into your static path.
+
+**Give the three BML faces a `unicodeRange` that leaves U+3000 out.** The font ships U+3000 (the ideographic space BML pages pad layers with) at **0.5 em**, while `MPLUS1P` and Kosugi draw it at 1 em — so a page that pads with it (TBS's createPage()) lands its coloured text on top of the base text. Route it to the fallback:
+
+```js
+const mPlus = (file) => ({ source: `url(/fonts/${file})`, descriptors: { unicodeRange: "U+0-2FFF, U+3001-10FFFF" } });
+roundGothic: mPlus("MPLUS1Code-Regular.woff2"), /* boldRoundGothic, squareGothic likewise */
+```
+
+With the fallback registered, U+3000 comes from `MPLUS1P` at 1 em. A Kosugi-only host does not need this: Kosugi draws U+3000 at 1 em already.
 A host that registers nothing renders in the browser's monospace — still correct, just not the
 profile's look.
 
