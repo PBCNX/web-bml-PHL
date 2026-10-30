@@ -3,6 +3,15 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.0.3 — the TOT descriptor says what the field is
+
+- The descriptor is the **time field's** offset from UTC, not the display zone: GMA declares PHL
+  +0:00 and its field is UTC (saved at 23:29 PH local, field 15:24 → the page now shows 23:24); TV5
+  and PTV declare +8:00 and their fields are local. The page clock is shown in the broadcaster's zone
+  (`streamClockOffsetMinutes`: PH is +8:00, else the declared value or JST).
+- A PH stream's polarity is ignored: TV5's descriptor byte `0x03` sets the bit the parser reads as
+  polarity (a −8:00 declaration, impossible for PH). The magnitude is the offset; PH cannot sit west
+  of UTC.
 ## 2.0.2 — the table text of a Japanese page, and the EWBS test flag
 
 - `.btb` text on a document that declares EUC-JP or Shift_JIS is no longer guessed as UTF-8: the

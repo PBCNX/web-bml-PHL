@@ -91,15 +91,23 @@ export declare function isPhilippineOffset(descriptors: readonly {
     tag: string;
 }[] | null | undefined): boolean;
 /**
- * The offset a stream's declaration actually means, in minutes.
+ * The offset of the TOT's **time field** from UTC, in minutes, or null when the stream declares none.
  *
- * A Philippine multiplex cannot sit at UTC+0: GMA's TOT carries `PHL` with a zero offset, which is a
- * declaration bug rather than time data, and trusting it puts every page clock eight hours out. A zero
- * offset from a PH stream is therefore read as the Philippine standard offset; anything else is passed
- * through unchanged, and a stream with no descriptor still answers null so the host or the default
- * decides.
+ * The descriptor is not decoration: it says what the field itself is. GMA declares PHL +0:00 and its
+ * field is UTC (the capture was saved at 23:29 PH local and the field reads 15:24), while TV5 and PTV
+ * declare +8:00 and their fields are local time. Japan's field is JST and normally carries no
+ * descriptor at all. Null means the stream did not say, and the host or the default decides.
  */
 export declare function effectiveStreamOffsetMinutes(descriptors: readonly {
     tag: string;
 }[] | null | undefined): number | null;
+/**
+ * The offset to **display** the broadcast clock at: the broadcaster's own time zone.
+ *
+ * The Philippines is +8:00 whatever the stream declares (PH standard Table 35), even when its time
+ * field is UTC. Elsewhere it is what the stream declared, or JST when it declared nothing.
+ */
+export declare function streamClockOffsetMinutes(descriptors: readonly {
+    tag: string;
+}[] | null | undefined): number;
 //# sourceMappingURL=time_offset.d.ts.map

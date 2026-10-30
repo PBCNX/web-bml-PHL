@@ -123,13 +123,15 @@ function decodeTS(options) {
     const lastEmergencyInfo = new Map();
     let patRetrieved = false;
     reader.addEventListener("tot", ({ section }) => {
-        // C16: the TOT's time field is the broadcast **local** time (Japan: JST, the Philippines:
-        // Filipino official time, UTC+8 — PH standard Table 35; its offset descriptor is deleted,
-        // Table 36). `mjdBCDToUnixEpoch` converts the field as if it were JST, so add that back to
-        // recover the wall clock, then subtract the stream's offset to get UTC. The client adds the
-        // offset again to display the wall clock, so the page shows the broadcaster's own time.
-        const offset = (0, time_offset_1.effectiveStreamOffsetMinutes)(section.descriptors);
-        const time = (0, time_offset_1.totWallClockToUnixMillis)((0, utils_js_1.mjdBCDToUnixEpoch)(section.jstTime) * 1000, offset);
+        // C16: the descriptor says what the **time field** is — GMA declares PHL +0:00 and its field
+        // is UTC (the capture was saved at 23:29 PH local and reads 15:24), TV5 and PTV declare +8:00
+        // and their fields are local, Japan's field is JST. `mjdBCDToUnixEpoch` converts the field as
+        // if it were JST, so add that back to recover the wall clock, then subtract the field's own
+        // offset to get UTC. The page clock is displayed in the broadcaster's zone (PH is +8:00
+        // whatever the field says), which is `offset` in the message.
+        const fieldOffset = (0, time_offset_1.effectiveStreamOffsetMinutes)(section.descriptors);
+        const offset = (0, time_offset_1.streamClockOffsetMinutes)(section.descriptors);
+        const time = (0, time_offset_1.totWallClockToUnixMillis)((0, utils_js_1.mjdBCDToUnixEpoch)(section.jstTime) * 1000, fieldOffset);
         if (currentTime !== time || localTimeOffset !== offset) {
             currentTime = time;
             localTimeOffset = offset;
