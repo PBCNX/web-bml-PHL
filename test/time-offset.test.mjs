@@ -5,6 +5,7 @@ import {
     JST_OFFSET_MINUTES,
     broadcastWallClockToUnixMillis,
     localTimeOffsetMinutes,
+    streamClockOffsetMinutes,
     totWallClockToUnixMillis,
 } from "../dist/client/time_offset.js";
 
@@ -52,7 +53,8 @@ test("a Philippine stream that declares a zero offset reads as +8:00", () => {
     // declaration bug, not time data: it maps to the standard offset. Every other value passes
     // through unchanged, including a zero from another country.
     const phZero = [{ tag: "localTimeOffset", offsets: [{ countryCode: 0x50484c, localTimeOffsetPolarity: false, localTimeOffset: 0x0000 }] }];
-    assert.equal(localTimeOffsetMinutes(phZero), 480, "PHL + 0 is the PH standard offset");
+    assert.equal(localTimeOffsetMinutes(phZero), 0, "PHL + 0 means the field is UTC");
+    assert.equal(streamClockOffsetMinutes(phZero), 480, "the page clock is Filipino time");
 
     const phEight = [{ tag: "localTimeOffset", offsets: [{ countryCode: 0x50484c, localTimeOffsetPolarity: false, localTimeOffset: 0x0800 }] }];
     assert.equal(localTimeOffsetMinutes(phEight), 480, "PHL + 8:00 unchanged");

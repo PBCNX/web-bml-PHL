@@ -51,4 +51,23 @@ export declare function totWallClockToUnixMillis(jstMillis: number, offsetMinute
  * `JST_OFFSET_MINUTES` when unknown).
  */
 export declare function broadcastWallClockToUnixMillis(year: number, month: number, day: number, hour: number, minute: number, second: number, broadcastOffsetMinutes?: number): number;
+/**
+ * The offset of the TOT's **time field** from UTC, in minutes, or null when the stream says nothing.
+ *
+ * The descriptor is not decoration: GMA declares PHL +0:00 and its field is UTC (the capture was
+ * saved at 23:29 PH local and reads 15:24), while TV5 and PTV declare +8:00 and their fields are
+ * local time. Japan's field is JST with no descriptor.
+ */
+export declare function effectiveStreamOffsetMinutes(descriptors: readonly {
+    tag: string;
+}[] | null | undefined): number | null;
+/**
+ * The offset to **display** the broadcast clock at: the broadcaster's own zone.
+ *
+ * The Philippines is +8:00 whatever the stream declares; elsewhere it is the declared value, or JST
+ * when the stream declared nothing.
+ */
+export declare function streamClockOffsetMinutes(descriptors: readonly {
+    tag: string;
+}[] | null | undefined): number;
 //# sourceMappingURL=time_offset.d.ts.map

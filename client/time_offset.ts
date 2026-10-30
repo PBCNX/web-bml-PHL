@@ -66,10 +66,13 @@ export function localTimeOffsetMinutes(
         // A PH stream is therefore +8:00 whatever the field says - 0 (GMA), a stray negative
         // (TV5's -8:00), or nothing; following the field moved the page clock by hours. Japan
         // keeps its declared value.
+        // A PH stream cannot sit west of UTC: TV5's descriptor byte 0x03 sets the bit the parser
+        // reads as polarity, which would mean -8:00 for a field that is plainly local. For PH the
+        // magnitude is the offset; elsewhere the declared polarity stands.
         if (first.countryCode === COUNTRY_CODE_PHILIPPINES) {
-            return PH_OFFSET_MINUTES;
+            return total;
         }
-        return signed;
+        return first.localTimeOffsetPolarity ? -total : total;
     }
     return null;
 }
@@ -103,4 +106,47 @@ export function broadcastWallClockToUnixMillis(
     broadcastOffsetMinutes: number = JST_OFFSET_MINUTES,
 ): number {
     return Date.UTC(year, month - 1, day, hour, minute, second) - broadcastOffsetMinutes * 60_000;
+}
+
+/**
+ * The offset of the TOT's **time field** from UTC, in minutes, or null when the stream says nothing.
+ *
+ * The descriptor is not decoration: GMA declares PHL +0:00 and its field is UTC (the capture was
+ * saved at 23:29 PH local and reads 15:24), while TV5 and PTV declare +8:00 and their fields are
+ * local time. Japan's field is JST with no descriptor.
+ */
+export function effectiveStreamOffsetMinutes(
+    descriptors: readonly { tag: string }[] | null | undefined,
+): number | null {
+    return localTimeOffsetMinutes(descriptors);
+}
+
+/**
+ * The offset to **display** the broadcast clock at: the broadcaster's own zone.
+ *
+ * The Philippines is +8:00 whatever the stream declares; elsewhere it is the declared value, or JST
+ * when the stream declared nothing.
+ */
+export function streamClockOffsetMinutes(
+    descriptors: readonly { tag: string }[] | null | undefined,
+): number {
+    if (isPhilippineDescriptor(descriptors)) {
+        return PH_OFFSET_MINUTES;
+    }
+    return localTimeOffsetMinutes(descriptors) ?? JST_OFFSET_MINUTES;
+}
+/** Whether the stream's offset descriptor names the Philippines. */
+function isPhilippineDescriptor(descriptors: readonly { tag: string }[] | null | undefined): boolean {
+    if (descriptors == null) {
+        return false;
+    }
+    for (const descriptor of descriptors) {
+        if (descriptor.tag !== "localTimeOffset" && descriptor.tag !== "mhLocalTimeOffset") {
+            continue;
+        }
+        if ((descriptor as LocalTimeOffsetDescriptor).offsets?.[0]?.countryCode === COUNTRY_CODE_PHILIPPINES) {
+            return true;
+        }
+    }
+    return false;
 }
