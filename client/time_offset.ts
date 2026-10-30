@@ -86,6 +86,20 @@ export function localTimeOffsetMinutes(
     return null;
 }
 
+/**
+ * Converts the TOT's time field to UTC.
+ *
+ * The field is the broadcast **local** time (Japan: JST; the Philippines: Filipino official time,
+ * UTC+8 — PH standard Table 35, whose offset descriptor is deleted in Table 36), and
+ * `arib-mmt-tlv-ts` hands it over already converted as if it were JST. Add that back to recover the
+ * wall clock, then subtract the stream's offset: Japan keeps its +9:00, the Philippines gets +8:00
+ * whether the stream declares 0, a stray negative, or nothing. A receiver that adds the offset again
+ * for display therefore shows the broadcaster's own clock.
+ */
+export function totWallClockToUnixMillis(jstMillis: number, offsetMinutes: number | null): number {
+    const wallClockMillis = jstMillis + JST_OFFSET_MINUTES * 60_000;
+    return wallClockMillis - (offsetMinutes ?? JST_OFFSET_MINUTES) * 60_000;
+}
 /** A broadcast wall clock: the fields a page declares, in the stream's local time. */
 export interface BroadcastWallClock {
     year: number;
@@ -164,9 +178,13 @@ export function isPhilippineOffset(descriptors: readonly { tag: string }[] | nul
 export function effectiveStreamOffsetMinutes(
     descriptors: readonly { tag: string }[] | null | undefined,
 ): number | null {
-    const declared = localTimeOffsetMinutes(descriptors);
-    if (declared === 0 && isPhilippineOffset(descriptors)) {
+    // The Philippine profile deletes the local_offset_time descriptor (PH standard Table 36) and
+    // defines the TOT time itself as Filipino official time, UTC+8 (Table 35, country "PHL"). A PH
+    // multiplex therefore carries no usable offset: whatever the field says — 0, a stray -8:00, or
+    // nothing — the broadcast local time is +8:00. Following the declared value moved the page clock
+    // by an hour on GMA's 0 and by seven on TV5's negative declaration.
+    if (isPhilippineOffset(descriptors)) {
         return PH_OFFSET_MINUTES;
     }
-    return declared;
+    return localTimeOffsetMinutes(descriptors);
 }

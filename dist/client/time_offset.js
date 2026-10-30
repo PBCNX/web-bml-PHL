@@ -18,6 +18,7 @@ exports.PH_OFFSET_MINUTES = exports.JST_OFFSET_MINUTES = void 0;
 exports.resolveLocalTimeOffset = resolveLocalTimeOffset;
 exports.describeLocalTimeOffsetSource = describeLocalTimeOffsetSource;
 exports.localTimeOffsetMinutes = localTimeOffsetMinutes;
+exports.totWallClockToUnixMillis = totWallClockToUnixMillis;
 exports.parseBroadcastWallClock = parseBroadcastWallClock;
 exports.broadcastWallClockToUnixMillis = broadcastWallClockToUnixMillis;
 exports.isPhilippineOffset = isPhilippineOffset;
@@ -66,6 +67,20 @@ function localTimeOffsetMinutes(descriptors) {
         return first.localTimeOffsetPolarity ? -total : total;
     }
     return null;
+}
+/**
+ * Converts the TOT's time field to UTC.
+ *
+ * The field is the broadcast **local** time (Japan: JST; the Philippines: Filipino official time,
+ * UTC+8 — PH standard Table 35, whose offset descriptor is deleted in Table 36), and
+ * `arib-mmt-tlv-ts` hands it over already converted as if it were JST. Add that back to recover the
+ * wall clock, then subtract the stream's offset: Japan keeps its +9:00, the Philippines gets +8:00
+ * whether the stream declares 0, a stray negative, or nothing. A receiver that adds the offset again
+ * for display therefore shows the broadcaster's own clock.
+ */
+function totWallClockToUnixMillis(jstMillis, offsetMinutes) {
+    const wallClockMillis = jstMillis + exports.JST_OFFSET_MINUTES * 60_000;
+    return wallClockMillis - (offsetMinutes ?? exports.JST_OFFSET_MINUTES) * 60_000;
 }
 /**
  * Parses the 14-digit `YYYYMMDDhhmmss` wall clock an absolute beitem timer carries.
@@ -128,10 +143,14 @@ function isPhilippineOffset(descriptors) {
  * decides.
  */
 function effectiveStreamOffsetMinutes(descriptors) {
-    const declared = localTimeOffsetMinutes(descriptors);
-    if (declared === 0 && isPhilippineOffset(descriptors)) {
+    // The Philippine profile deletes the local_offset_time descriptor (PH standard Table 36) and
+    // defines the TOT time itself as Filipino official time, UTC+8 (Table 35, country "PHL"). A PH
+    // multiplex therefore carries no usable offset: whatever the field says — 0, a stray -8:00, or
+    // nothing — the broadcast local time is +8:00. Following the declared value moved the page clock
+    // by an hour on GMA's 0 and by seven on TV5's negative declaration.
+    if (isPhilippineOffset(descriptors)) {
         return exports.PH_OFFSET_MINUTES;
     }
-    return declared;
+    return localTimeOffsetMinutes(descriptors);
 }
 //# sourceMappingURL=time_offset.js.map

@@ -1,7 +1,7 @@
 import { TSReader } from "arib-mmt-tlv-ts/ts/reader.js";
 import { decodeSIText } from "arib-mmt-tlv-ts/ts/si-text-decoder.js";
 import { bcdTimeToSeconds, mjdBCDToUnixEpoch } from "arib-mmt-tlv-ts/utils.js";
-import { effectiveStreamOffsetMinutes } from "../client/time_offset";
+import { effectiveStreamOffsetMinutes, JST_OFFSET_MINUTES, totWallClockToUnixMillis } from "../client/time_offset";
 import { PESReader } from "arib-mmt-tlv-ts/ts/pes-reader.js";
 import { unzlibSync } from "fflate";
 import { EntityParser, type MediaType, parseMediaType, entityHeaderToString, parseMediaTypeFromString } from "../client/entity_parser";
@@ -172,12 +172,13 @@ export function decodeTS(options: DecodeTSOptions) {
     let patRetrieved = false;
 
     reader.addEventListener("tot", ({ section }) => {
-        const time = mjdBCDToUnixEpoch(section.jstTime) * 1000;
-        // C16: the stream's local time offset (PH is +8, Japan +9). A page's absolute times are in
-        // the broadcast local time, so the client needs this instead of the old JST assumption.
-        // GMA's TOT declares PHL with a zero offset, which is a declaration bug: the effective reader
-        // answers +8:00 there instead of handing the client a clock eight hours out.
+        // C16: the TOT's time field is the broadcast **local** time (Japan: JST, the Philippines:
+        // Filipino official time, UTC+8 — PH standard Table 35; its offset descriptor is deleted,
+        // Table 36). `mjdBCDToUnixEpoch` converts the field as if it were JST, so add that back to
+        // recover the wall clock, then subtract the stream's offset to get UTC. The client adds the
+        // offset again to display the wall clock, so the page shows the broadcaster's own time.
         const offset = effectiveStreamOffsetMinutes(section.descriptors);
+        const time = totWallClockToUnixMillis(mjdBCDToUnixEpoch(section.jstTime) * 1000, offset);
         if (currentTime !== time || localTimeOffset !== offset) {
             currentTime = time;
             localTimeOffset = offset;

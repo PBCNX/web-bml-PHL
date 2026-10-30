@@ -44,6 +44,17 @@ export type LocalTimeOffsetDescriptor = {
 export declare function localTimeOffsetMinutes(descriptors: readonly {
     tag: string;
 }[] | null | undefined): number | null;
+/**
+ * Converts the TOT's time field to UTC.
+ *
+ * The field is the broadcast **local** time (Japan: JST; the Philippines: Filipino official time,
+ * UTC+8 — PH standard Table 35, whose offset descriptor is deleted in Table 36), and
+ * `arib-mmt-tlv-ts` hands it over already converted as if it were JST. Add that back to recover the
+ * wall clock, then subtract the stream's offset: Japan keeps its +9:00, the Philippines gets +8:00
+ * whether the stream declares 0, a stray negative, or nothing. A receiver that adds the offset again
+ * for display therefore shows the broadcaster's own clock.
+ */
+export declare function totWallClockToUnixMillis(jstMillis: number, offsetMinutes: number | null): number;
 /** A broadcast wall clock: the fields a page declares, in the stream's local time. */
 export interface BroadcastWallClock {
     year: number;

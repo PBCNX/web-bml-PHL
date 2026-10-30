@@ -30,7 +30,7 @@ Every change this fork makes, with the standard's clause and the measurement beh
 | C13 | monospaced face covering PH text | engine side done |
 | C14 | 139 EWBS area codes, coverage | done |
 | C15 | NVRAM areas at 4 KB | engine side done |
-| C16 | clock from the stream's offset | done |
+| C16 | the TOT time is the broadcast local time (PH: UTC+8; descriptor deleted in Table 36) | done |
 
 ## The numbers
 
