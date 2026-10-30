@@ -35,6 +35,13 @@ export declare function localTimeOffsetMinutes(descriptors: readonly {
     tag: string;
 }[] | null | undefined): number | null;
 /**
+ * Converts the TOT's time field to UTC. The field is the broadcast **local** time (Japan: JST; the
+ * Philippines: Filipino official time, UTC+8 — PH standard Table 35), and `arib-mmt-tlv-ts` hands it
+ * over already converted as if it were JST. Add that back to recover the wall clock, then subtract
+ * the stream's offset. A receiver that adds the offset again for display shows the broadcaster's time.
+ */
+export declare function totWallClockToUnixMillis(jstMillis: number, offsetMinutes: number | null): number;
+/**
  * Convert a broadcast wall-clock time (year, month, day, hour, minute, second in the **broadcast
  * local time**) to UTC milliseconds.
  *

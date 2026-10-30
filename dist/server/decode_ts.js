@@ -97,10 +97,10 @@ function decodeTS(options) {
     let oneSeg = false;
     let patRetrieved = false;
     reader.addEventListener("tot", ({ section }) => {
-        const time = (0, utils_js_1.mjdBCDToUnixEpoch)(section.jstTime) * 1000;
+        const offset = (0, time_offset_1.localTimeOffsetMinutes)(section.descriptors);
+        const time = (0, time_offset_1.totWallClockToUnixMillis)((0, utils_js_1.mjdBCDToUnixEpoch)(section.jstTime) * 1000, offset);
         // C16: the stream's local time offset (PH is +8, Japan +9). A page's absolute times are in
         // the broadcast local time, so the client needs this instead of the old JST assumption.
-        const offset = (0, time_offset_1.localTimeOffsetMinutes)(section.descriptors);
         if (currentTime !== time || localTimeOffset !== offset) {
             currentTime = time;
             localTimeOffset = offset;

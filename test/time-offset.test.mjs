@@ -5,6 +5,7 @@ import {
     JST_OFFSET_MINUTES,
     broadcastWallClockToUnixMillis,
     localTimeOffsetMinutes,
+    totWallClockToUnixMillis,
 } from "../dist/client/time_offset.js";
 
 test("the TOT descriptor gives the stream's local offset, not JST", () => {
@@ -63,4 +64,17 @@ test("a Philippine stream that declares a zero offset reads as +8:00", () => {
     assert.equal(localTimeOffsetMinutes(britain), 0, "a zero from another country is real time data");
 
     assert.equal(localTimeOffsetMinutes(null), null, "no descriptor stays unknown");
+});
+
+test("the TOT wall clock is Filipino time whatever the descriptor says", () => {
+    // PH standard Table 35: the TOT time is Filipino official time (UTC+8); Table 36 deletes the
+    // offset descriptor. Measured: GMA declares 0, TV5 a negative -8:00, preview +8:00 — all three
+    // display their own raw wall clock with this rule.
+    const phNegative = [{ tag: "localTimeOffset", offsets: [{ countryCode: 0x50484c, localTimeOffsetPolarity: true, localTimeOffset: 0x0800 }] }];
+    assert.equal(localTimeOffsetMinutes(phNegative), 480, "a PH stream is +8:00 even with a negative declaration");
+
+    // mjdBCDToUnixEpoch applies the JST conversion; the helper recovers the wall clock.
+    const gmaJstMillis = Date.UTC(2023, 8, 14, 6, 24, 22);
+    assert.equal(totWallClockToUnixMillis(gmaJstMillis, 480), Date.UTC(2023, 8, 14, 7, 24, 22));
+    assert.equal(new Date(totWallClockToUnixMillis(gmaJstMillis, 480) + 480 * 60000).toISOString(), "2023-09-14T15:24:22.000Z");
 });

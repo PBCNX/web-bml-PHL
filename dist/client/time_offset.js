@@ -16,6 +16,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PH_OFFSET_MINUTES = exports.JST_OFFSET_MINUTES = void 0;
 exports.localTimeOffsetMinutes = localTimeOffsetMinutes;
+exports.totWallClockToUnixMillis = totWallClockToUnixMillis;
 exports.broadcastWallClockToUnixMillis = broadcastWallClockToUnixMillis;
 /** JST, the fallback when the stream does not say: 9 hours east of UTC. */
 exports.JST_OFFSET_MINUTES = 9 * 60;
@@ -47,16 +48,26 @@ function localTimeOffsetMinutes(descriptors) {
         const minutes = bcdToNumber(first.localTimeOffset & 0xff);
         const total = hours * 60 + minutes;
         const signed = first.localTimeOffsetPolarity ? -total : total;
-        // A Philippine multiplex cannot sit at UTC+0: the GMA capture declares country PHL with an
-        // offset of 0, which is a declaration bug rather than time data (TV5 declares +8:00 in the
-        // same country). Read PHL + positive-zero as the Philippine standard offset; every other
-        // value passes through unchanged, including a zero from another country.
-        if (signed === 0 && first.countryCode === COUNTRY_CODE_PHILIPPINES) {
+        // The PH profile deletes the local_offset_time descriptor (PH standard Table 36) and
+        // defines the TOT time itself as Filipino official time, UTC+8 (Table 35, country "PHL").
+        // A PH stream is therefore +8:00 whatever the field says - 0 (GMA), a stray negative
+        // (TV5's -8:00), or nothing; following the field moved the page clock by hours. Japan
+        // keeps its declared value.
+        if (first.countryCode === COUNTRY_CODE_PHILIPPINES) {
             return exports.PH_OFFSET_MINUTES;
         }
         return signed;
     }
     return null;
+}
+/**
+ * Converts the TOT's time field to UTC. The field is the broadcast **local** time (Japan: JST; the
+ * Philippines: Filipino official time, UTC+8 — PH standard Table 35), and `arib-mmt-tlv-ts` hands it
+ * over already converted as if it were JST. Add that back to recover the wall clock, then subtract
+ * the stream's offset. A receiver that adds the offset again for display shows the broadcaster's time.
+ */
+function totWallClockToUnixMillis(jstMillis, offsetMinutes) {
+    return jstMillis + exports.JST_OFFSET_MINUTES * 60_000 - (offsetMinutes ?? exports.JST_OFFSET_MINUTES) * 60_000;
 }
 /**
  * Convert a broadcast wall-clock time (year, month, day, hour, minute, second in the **broadcast
