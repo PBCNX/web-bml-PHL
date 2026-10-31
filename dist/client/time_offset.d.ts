@@ -41,6 +41,8 @@ export declare function localTimeOffsetMinutes(descriptors: readonly {
  * the stream's offset. A receiver that adds the offset again for display shows the broadcaster's time.
  */
 export declare function totWallClockToUnixMillis(jstMillis: number, offsetMinutes: number | null): number;
+/** The TOT field as sent, read as a wall clock: the receiver ignores the descriptor, so we do too. */
+export declare function totFieldUnixMillis(jstMillis: number): number;
 /**
  * Convert a broadcast wall-clock time (year, month, day, hour, minute, second in the **broadcast
  * local time**) to UTC milliseconds.

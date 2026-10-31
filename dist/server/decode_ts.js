@@ -98,9 +98,9 @@ function decodeTS(options) {
     let patRetrieved = false;
     reader.addEventListener("tot", ({ section }) => {
         // The descriptor says what the field is; the page clock is shown in the broadcaster's zone.
-        const fieldOffset = (0, time_offset_1.effectiveStreamOffsetMinutes)(section.descriptors);
-        const offset = (0, time_offset_1.streamClockOffsetMinutes)(section.descriptors);
-        const time = (0, time_offset_1.totWallClockToUnixMillis)((0, utils_js_1.mjdBCDToUnixEpoch)(section.jstTime) * 1000, fieldOffset);
+        // Verbatim: the field as sent; the declared offset is diagnostic only.
+        const offset = (0, time_offset_1.effectiveStreamOffsetMinutes)(section.descriptors);
+        const time = (0, time_offset_1.totFieldUnixMillis)((0, utils_js_1.mjdBCDToUnixEpoch)(section.jstTime) * 1000);
         // C16: the stream's local time offset (PH is +8, Japan +9). A page's absolute times are in
         // the broadcast local time, so the client needs this instead of the old JST assumption.
         if (currentTime !== time || localTimeOffset !== offset) {

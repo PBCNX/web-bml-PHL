@@ -517,7 +517,9 @@ export class Resources {
      * local_time_offset descriptor, else JST (the behaviour before this was configurable).
      */
     public get localTimeOffsetMinutes(): number {
-        return this.timeZoneOffsetMinutes ?? this._localTimeOffsetMinutes ?? JST_OFFSET_MINUTES;
+        // The TOT descriptor is inert on the field receiver (TVplus adds +8 itself), so the stream
+        // declaration is diagnostic only and never moves the clock.
+        return this.timeZoneOffsetMinutes ?? JST_OFFSET_MINUTES;
     }
 
     /** Where the offset in use came from: the host, the stream, or the JST default. */

@@ -1,7 +1,7 @@
 import { TSReader } from "arib-mmt-tlv-ts/ts/reader.js";
 import { decodeSIText } from "arib-mmt-tlv-ts/ts/si-text-decoder.js";
 import { bcdTimeToSeconds, mjdBCDToUnixEpoch } from "arib-mmt-tlv-ts/utils.js";
-import { effectiveStreamOffsetMinutes, streamClockOffsetMinutes, totWallClockToUnixMillis } from "../client/time_offset";
+import { effectiveStreamOffsetMinutes, totFieldUnixMillis } from "../client/time_offset";
 import { PESReader } from "arib-mmt-tlv-ts/ts/pes-reader.js";
 import { unzlibSync } from "fflate";
 import { EntityParser, type MediaType, parseMediaType, entityHeaderToString, parseMediaTypeFromString } from "./entity_parser";
@@ -144,9 +144,9 @@ export function decodeTS(options: DecodeTSOptions) {
 
     reader.addEventListener("tot", ({ section }) => {
         // The descriptor says what the field is; the page clock is shown in the broadcaster's zone.
-        const fieldOffset = effectiveStreamOffsetMinutes(section.descriptors);
-        const offset = streamClockOffsetMinutes(section.descriptors);
-        const time = totWallClockToUnixMillis(mjdBCDToUnixEpoch(section.jstTime) * 1000, fieldOffset);
+        // Verbatim: the field as sent; the declared offset is diagnostic only.
+        const offset = effectiveStreamOffsetMinutes(section.descriptors);
+        const time = totFieldUnixMillis(mjdBCDToUnixEpoch(section.jstTime) * 1000);
         // C16: the stream's local time offset (PH is +8, Japan +9). A page's absolute times are in
         // the broadcast local time, so the client needs this instead of the old JST assumption.
         if (currentTime !== time || localTimeOffset !== offset) {

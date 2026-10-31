@@ -3,6 +3,14 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 1.1.5 — the engine reports the TOT, and the receiver decides
+
+- The TOT descriptor is **inert on the field receiver**: the ABS-CBN TVplus adds +8 to whatever the
+  field holds, whatever the descriptor says (PCNX-DTV TimeInjector, hardware test 2026-10-06), and a
+  sweep of eight PH muxes found the same byte meaning UTC on one mux and local on another.
+- The engine reports the field verbatim and the descriptor verbatim (diagnostic only); the display
+  offset is the host's setting, else the default. A host that follows the box sets
+  `timeZoneOffsetMinutes: 480` — GMA's 15:24:22 field reads 23:24, TV5's 01:38:05 reads 09:38.
 ## 1.1.4 — the TOT descriptor is the field's offset
 
 - The descriptor says what the **time field** is, not where to display: GMA declares PHL +0:00 and

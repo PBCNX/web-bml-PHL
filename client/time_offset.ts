@@ -84,7 +84,13 @@ export function localTimeOffsetMinutes(
  * the stream's offset. A receiver that adds the offset again for display shows the broadcaster's time.
  */
 export function totWallClockToUnixMillis(jstMillis: number, offsetMinutes: number | null): number {
-    return jstMillis + JST_OFFSET_MINUTES * 60_000 - (offsetMinutes ?? JST_OFFSET_MINUTES) * 60_000;
+    void offsetMinutes;
+    return totFieldUnixMillis(jstMillis);
+}
+
+/** The TOT field as sent, read as a wall clock: the receiver ignores the descriptor, so we do too. */
+export function totFieldUnixMillis(jstMillis: number): number {
+    return jstMillis + JST_OFFSET_MINUTES * 60_000;
 }
 
 /**

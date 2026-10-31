@@ -43,7 +43,7 @@ export function describeConfiguration(input: {
     const streamOffset = input.streamOffsetMinutes;
     return {
         textCoding: input.textCoding,
-        localTimeOffsetMinutes: hostOffset ?? streamOffset ?? input.defaultOffsetMinutes,
+        localTimeOffsetMinutes: hostOffset ?? input.defaultOffsetMinutes,
         // The host's own setting wins over the stream, and both win over JST. This mirrors
         // Resources#localTimeOffsetMinutes — the snapshot must not disagree with the clock.
         localTimeOffsetSource: hostOffset != null ? "host" : streamOffset != null ? "stream" : "default",

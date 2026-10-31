@@ -17,6 +17,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PH_OFFSET_MINUTES = exports.JST_OFFSET_MINUTES = void 0;
 exports.localTimeOffsetMinutes = localTimeOffsetMinutes;
 exports.totWallClockToUnixMillis = totWallClockToUnixMillis;
+exports.totFieldUnixMillis = totFieldUnixMillis;
 exports.broadcastWallClockToUnixMillis = broadcastWallClockToUnixMillis;
 exports.effectiveStreamOffsetMinutes = effectiveStreamOffsetMinutes;
 exports.streamClockOffsetMinutes = streamClockOffsetMinutes;
@@ -72,7 +73,12 @@ function localTimeOffsetMinutes(descriptors) {
  * the stream's offset. A receiver that adds the offset again for display shows the broadcaster's time.
  */
 function totWallClockToUnixMillis(jstMillis, offsetMinutes) {
-    return jstMillis + exports.JST_OFFSET_MINUTES * 60_000 - (offsetMinutes ?? exports.JST_OFFSET_MINUTES) * 60_000;
+    void offsetMinutes;
+    return totFieldUnixMillis(jstMillis);
+}
+/** The TOT field as sent, read as a wall clock: the receiver ignores the descriptor, so we do too. */
+function totFieldUnixMillis(jstMillis) {
+    return jstMillis + exports.JST_OFFSET_MINUTES * 60_000;
 }
 /**
  * Convert a broadcast wall-clock time (year, month, day, hour, minute, second in the **broadcast
