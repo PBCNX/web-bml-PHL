@@ -3,6 +3,17 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.1.0 — BML-PH Sans
+
+- **New face:** `BML-PH Sans` (954 KB woff2, 2.0 MB ttf) and `BML-PH Sans Lite` (431 KB, JIS level 1
+  only), derived from Noto Sans Mono CJK JP (OFL). The BML cell is enforced on every Latin letter —
+  advance 0.5 em, ink centred inside the cell, accented letters matched to their base letter's width
+  — and kana/kanji/`U+3000`/`℃` are 1 em. The full face carries `霾` (U+972D), which none of the
+  previous faces had.
+- Unicode-range chunks (`latin-ph`, `kana`, `cjk`, `symbols`) for hosts that want to load kanji on
+  demand, and `.ttf` files for Windows install (Settings > Fonts lists both families).
+- `docs/HOSTING.md` now recommends `BML-PH Sans`; the M+ stack stays registered as the deprecated
+  path and is removed in 3.0.0.
 ## 2.0.4 — the engine reports the TOT, and the receiver decides
 
 - The TOT descriptor is **inert on the field receiver**: the ABS-CBN TVplus adds +8 to whatever the

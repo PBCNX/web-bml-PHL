@@ -19,3 +19,22 @@ BML face: monospaced at 0.5 em, no Latin accents.
 
 Licences: SIL OFL 1.1 for the M PLUS and Kosugi families (`OFL-MPLUS1Code.txt`, `LICENSE.txt`);
 the Kosugi files also carry Apache-2.0 terms as shipped (`AUTHORS.txt`, `CONTRIBUTORS.txt`).
+
+## BML-PH Sans and BML-PH Sans Lite (2.1.0)
+
+The PH face. Derived from Noto Sans Mono CJK JP (OFL), with the BML cell enforced on every Latin
+letter: advance 500/1000, ink centred and inside the cell, accented letters matched to their base
+letter's width. Kana, kanji and U+3000 are 1 em; `℃` is 1 em; the full face carries `霾` (U+972D).
+
+| family | file | size | covers |
+|---|---|---|---|
+| `BML-PH Sans` | `BMLPH-Sans-Regular.woff2` (or `.ttf`) | 954 KB / 2.0 MB | JIS level 1+2, 7,401 glyphs |
+| `BML-PH Sans Lite` | `BMLPH-SansLite-Regular.woff2` (or `.ttf`) | 431 KB / 0.4 MB | JIS level 1, 3,509 glyphs |
+
+`BMLPH-Sans-{latin-ph,kana,cjk,symbols}.woff2` are unicode-range chunks of the full face for hosts
+that want to load kanji on demand. The `.ttf` files are for Windows install (Settings > Fonts lists
+both families).
+
+The M+/Kosugi/PHLatin files above stay for compatibility with hosts that already register them;
+they are deprecated as of 2.1.0 and will be removed in 3.0.0. Licence: `OFL-BMLPH-Sans.txt`
+(SIL Open Font License 1.1, Noto).

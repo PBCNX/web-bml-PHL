@@ -15,7 +15,33 @@ What a host wires up. The engine is a library: `new BMLBrowser(options)`, plus a
 
 ## Fonts
 
-Register the faces under the names the stylesheets use:
+**2.1.0 and later: register `BML-PH Sans`.** It is the PH face — Noto Sans Mono CJK JP derived, with
+the BML cell enforced on every Latin letter (advance 0.5 em, accents matched to their base width) and
+kana/kanji/`U+3000` at 1 em. No `unicodeRange` trick is needed: the face draws `U+3000` at 1 em
+itself.
+
+```js
+new BMLBrowser({
+  fonts: {
+    roundGothic:     { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
+    boldRoundGothic: { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" }, // or a bold cut when one ships
+    squareGothic:    { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
+    fallback:        { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
+    lastResort:      { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
+  },
+});
+```
+
+`BMLPH-SansLite-Regular.woff2` is the same face with JIS level 1 only (431 KB instead of 954 KB) for
+hosts with a tight budget; the family name is `BML-PH Sans Lite` and it registers the same way.
+`BMLPH-Sans-{latin-ph,kana,cjk,symbols}.woff2` are unicode-range chunks of the full face for lazy
+loading (register one `@font-face` per chunk with the matching `unicodeRange`).
+
+The `.ttf` files are for Windows install (Settings > Fonts lists both families).
+
+### The pre-2.1.0 M+ stack
+
+The old registration still works and its files still ship (deprecated, removed in 3.0.0):
 
 ```js
 new BMLBrowser({
@@ -29,24 +55,16 @@ new BMLBrowser({
 });
 ```
 
-The files ship in `node_modules/web-bml/fonts/`; copy the ones you register into your static path.
-
-**Give the three BML faces a `unicodeRange` that leaves U+3000 out.** The font ships U+3000 (the
-ideographic space BML pages pad layers with) at **0.5 em**, while `MPLUS1P` and Kosugi draw it at
-1 em — so a page that pads with it (TBS's `createPage()`) lands its coloured text on top of the base
-text. Route it to the fallback:
+If you keep the M+ faces, **give the three BML faces a `unicodeRange` that leaves U+3000 out** —
+MPLUS1Code draws U+3000 at 0.5 em while MPLUS1P and Kosugi draw it at 1 em, so a page that pads with
+it (TBS's `createPage()`) lands its coloured text on top of the base text. Route it to the fallback:
 
 ```js
 const mPlus = (file) => ({ source: `url(/fonts/${file})`, descriptors: { unicodeRange: "U+0-2FFF, U+3001-10FFFF" } });
-roundGothic: mPlus("MPLUS1Code-Regular.woff2"), /* boldRoundGothic, squareGothic likewise */
 ```
 
-With the fallback registered, U+3000 comes from `MPLUS1P` at 1 em. A Kosugi-only host does not need
-this: Kosugi draws U+3000 at 1 em already.
 A host that registers nothing renders in the browser's monospace — still correct, just not the
-profile's look.
-
-## Clock
+profile's look.## Clock
 
 The engine reports the TOT **field verbatim** and the descriptor verbatim (diagnostic). The receiver
 ignores the descriptor: the ABS-CBN TVplus adds +8 to whatever the field holds (PCNX-DTV TimeInjector,

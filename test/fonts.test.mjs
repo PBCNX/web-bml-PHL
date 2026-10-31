@@ -137,7 +137,8 @@ const faces = readdirSync(fontDir).filter((name) => name.endsWith(".woff2"));
 // The faces a host may use as the primary BML face must be ASCII-monospaced. PHLatin and MPLUS1P are
 // fallbacks only — M PLUS 1p is proportional Latin by design, reached only for ranges the primary
 // lacks — so they are checked separately below.
-const bmlFaces = faces.filter((name) => name.startsWith("Kosugi") || name.startsWith("MPLUS1Code"));
+const bmlFaces = faces.filter((name) => name.startsWith("Kosugi") || name.startsWith("MPLUS1Code") ||
+    (name.startsWith("BMLPH-Sans") && !name.startsWith("BMLPH-Sans-")));
 
 test("every BML face is monospaced for ASCII", () => {
     assert.ok(bmlFaces.length > 0);
@@ -210,3 +211,17 @@ test("the shipped all-M+ pair keeps the BML cells in the ranges it supplies", ()
 });
 
 
+// C13, 2.1.0 - the PH face. Noto's own accents, all of them in the 0.5 em cell the engine's layout
+// assumes; the cell is measured as advance 500 on the letters a PH label actually uses.
+const PH_LETTERS = [0x6e, 0xf1, 0xd1, 0xe1, 0xe9, 0xed, 0xf3, 0xfa, 0xfc];
+
+test("BML-PH Sans draws the PH letters in the 0.5 em cell", () => {
+    for (const face of ["BMLPH-Sans-Regular.woff2", "BMLPH-SansLite-Regular.woff2"]) {
+        const { unitsPerEm, advance } = fontMetrics(join(fontDir, face));
+        for (const code of PH_LETTERS) {
+            assert.equal(advance(code), unitsPerEm / 2, `${face}: U+${code.toString(16)} must be 0.5 em`);
+        }
+        assert.equal(advance(0x3000), unitsPerEm, `${face}: U+3000 must be 1 em`);
+        assert.equal(advance(0x2103), unitsPerEm, `${face}: U+2103 must be 1 em`);
+    }
+});
