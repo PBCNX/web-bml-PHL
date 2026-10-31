@@ -38,3 +38,19 @@ both families).
 The M+/Kosugi/PHLatin files above stay for compatibility with hosts that already register them;
 they are deprecated as of 2.1.0 and will be removed in 3.0.0. Licence: `OFL-BMLPH-Sans.txt`
 (SIL Open Font License 1.1, Noto).
+
+## BML-PH Sans 2.2.0 — the script set
+
+The same face, now with the scripts BML pages actually mix:
+
+| family | file | size | covers |
+|---|---|---|---|
+| `BML-PH Sans` | `BMLPH-Sans-Regular.ttf/.woff2` | 2.0 MB / 954 KB | JIS 1+2, Latin, **half-width kana**, **Greek**, **Cyrillic**, **₱** |
+| `BML-PH Sans Bold` | `BMLPH-Sans-Bold.ttf/.woff2` | 2.0 MB / 960 KB | the bold cut |
+| `BML-PH Sans Lite` | `BMLPH-SansLite-Regular.ttf/.woff2` | 0.44 MB / 440 KB | JIS level 1, same scripts |
+| `BML-PH Sans Lite Bold` | `BMLPH-SansLite-Bold.ttf/.woff2` | 0.44 MB / 440 KB | lite bold cut |
+
+Cell rules: Latin and half-width kana **0.5 em** (advance 500, ink centred inside the cell, accents
+matched to their base letter); Greek and Cyrillic **1.0 em** (advance 1000, ink fitted and centred);
+kana/kanji/`U+3000`/`℃` **1.0 em**. `₱` (U+20B1) is 0.5 em. Greek has 23 archaic codepoints no
+source ships; Cyrillic and half-width kana are complete.

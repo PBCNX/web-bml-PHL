@@ -225,3 +225,19 @@ test("BML-PH Sans draws the PH letters in the 0.5 em cell", () => {
         assert.equal(advance(0x2103), unitsPerEm, `${face}: U+2103 must be 1 em`);
     }
 });
+
+// 2.2.0 - the scripts a PH page mixes: the peso sign and half-width kana in the 0.5 em cell,
+// Greek and Cyrillic in the 1 em (double-byte) cell.
+test("BML-PH Sans 2.2.0 carries the script set in the right cells", () => {
+    for (const face of ["BMLPH-Sans-Regular.woff2", "BMLPH-SansLite-Regular.woff2"]) {
+        const { unitsPerEm, advance } = fontMetrics(join(fontDir, face));
+        assert.equal(advance(0x20b1), unitsPerEm / 2, `${face}: the peso sign must be 0.5 em`);
+        for (let code = 0xff61; code <= 0xff9f; code++) {
+            assert.equal(advance(code), unitsPerEm / 2, `${face}: half-width kana U+${code.toString(16)} must be 0.5 em`);
+        }
+        for (const code of [0x3b1, 0x3a9, 0x410, 0x42f]) {
+            assert.equal(advance(code), unitsPerEm, `${face}: U+${code.toString(16)} must be 1 em`);
+        }
+        assert.equal(advance(0x3000), unitsPerEm, `${face}: U+3000 must be 1 em`);
+    }
+});

@@ -3,6 +3,14 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.2.0 — the script set
+
+- `BML-PH Sans` now carries what a PH BML page actually mixes: **₱** (U+20B1) at 0.5 em, **half-width
+  kana** (U+FF61–FF9F, all 63) at 0.5 em, and **Greek + Cyrillic** at 1 em (double-byte cells).
+- A **bold** cut ships for both variants: `BMLPH-Sans-Bold.woff2` and `BMLPH-SansLite-Bold.woff2`
+  (family `BML-PH Sans Bold` / `BML-PH Sans Lite Bold`), plus `.ttf` for Windows install.
+- Greek has 23 archaic codepoints no source ships; Cyrillic and half-width kana are complete.
+- Chunks regenerated with the new ranges (latin-ph now includes the Greek/Cyrillic pieces).
 ## 2.1.0 — BML-PH Sans
 
 - **New face:** `BML-PH Sans` (954 KB woff2, 2.0 MB ttf) and `BML-PH Sans Lite` (431 KB, JIS level 1
