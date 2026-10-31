@@ -55,6 +55,12 @@ export declare function localTimeOffsetMinutes(descriptors: readonly {
  * for display therefore shows the broadcaster's own clock.
  */
 export declare function totWallClockToUnixMillis(jstMillis: number, offsetMinutes: number | null): number;
+/**
+ * The TOT time field exactly as the broadcaster sent it, as epoch millis with the wall clock read
+ * as UTC. No descriptor applies: the receiver ignores it, so the engine does too, and a host that
+ * follows the box (PH: add +8:00) shows the same clock the viewer sees.
+ */
+export declare function totFieldUnixMillis(jstMillis: number): number;
 /** A broadcast wall clock: the fields a page declares, in the stream's local time. */
 export interface BroadcastWallClock {
     year: number;

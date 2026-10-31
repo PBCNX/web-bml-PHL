@@ -17,18 +17,20 @@ const base = {
     fonts: [],
 };
 
-test("the offset comes from the host first, then the stream, then JST", () => {
+test("the display offset is the host's, else the default; the stream is diagnostic", () => {
+    // The TOT descriptor is inert on the field receiver (the TVplus adds +8 itself), so a stream's
+    // declaration never moves the clock - it is reported, and a host that follows the box sets its
+    // own offset.
     const dflt = describeConfiguration(base);
     assert.equal(dflt.localTimeOffsetMinutes, 540);
     assert.equal(dflt.localTimeOffsetSource, "default");
 
     const stream = describeConfiguration({ ...base, streamOffsetMinutes: 480 });
-    assert.equal(stream.localTimeOffsetMinutes, 480);
-    assert.equal(stream.localTimeOffsetSource, "stream", "the TV5 stream declares +8");
+    assert.equal(stream.localTimeOffsetMinutes, 540, "the stream declaration does not move the clock");
 
     const host = describeConfiguration({ ...base, hostOffsetMinutes: 480, streamOffsetMinutes: 540 });
     assert.equal(host.localTimeOffsetMinutes, 480);
-    assert.equal(host.localTimeOffsetSource, "host", "the host override wins over the stream");
+    assert.equal(host.localTimeOffsetSource, "host", "the host follows the receiver");
 });
 
 test("the remaining settings are reported as the host set them", () => {

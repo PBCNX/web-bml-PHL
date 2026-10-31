@@ -12,17 +12,20 @@ import {
     parseBroadcastWallClock,
     resolveLocalTimeOffset,
     streamClockOffsetMinutes,
+    totFieldUnixMillis,
     totWallClockToUnixMillis,
 } from "../dist/client/time_offset.js";
 
-test("the offset precedence is host, then stream, then JST", () => {
-    assert.equal(resolveLocalTimeOffset(480, 540), 480, "the host's setting wins over the stream");
-    assert.equal(resolveLocalTimeOffset(null, 540), 540, "the stream's TOT is next");
+test("the display offset is the host, else JST; the stream never moves it", () => {
+    // The receiver ignores the TOT descriptor and adds its own +8, so the engine follows the host:
+    // the stream's declaration is diagnostic data, not a clock correction.
+    assert.equal(resolveLocalTimeOffset(480, 540), 480, "the host's setting wins");
+    assert.equal(resolveLocalTimeOffset(null, 540), JST_OFFSET_MINUTES, "the stream does not move the clock");
     assert.equal(resolveLocalTimeOffset(null, null), JST_OFFSET_MINUTES, "JST is the fallback");
-    assert.equal(resolveLocalTimeOffset(undefined, 540), 540, "an absent host setting is not zero");
+    assert.equal(resolveLocalTimeOffset(undefined, 540), JST_OFFSET_MINUTES, "an absent host setting is not zero");
 
     assert.equal(describeLocalTimeOffsetSource(480, 540), "host");
-    assert.equal(describeLocalTimeOffsetSource(null, 540), "stream");
+    assert.equal(describeLocalTimeOffsetSource(null, 540), "default");
     assert.equal(describeLocalTimeOffsetSource(null, null), "default");
 });
 
@@ -97,18 +100,18 @@ test("a zero offset outside the Philippines is still zero", () => {
     const gmt = [{ tag: "localTimeOffset", offsets: [{ countryCode: 0x474252, localTimeOffsetPolarity: false, localTimeOffset: 0x0000 }] }];
     assert.equal(effectiveStreamOffsetMinutes(gmt), 0);
 });
-test("a declared +0:00 field is UTC, and the clock shows Filipino time", () => {
-    // GMA: field 15:24:22, descriptor PHL +0:00. The capture was saved at 23:29 PH local, so the field
-    // is UTC and the page must read 23:24:22. TV5/PTV declare +8:00 and their fields are local.
+test("the TOT field is reported verbatim; the descriptor never moves it", () => {
+    // The field is what the broadcaster sent, read as a wall clock: GMA's 15:24:22 and TV5's 01:38:05
+    // both come out unchanged, whatever their descriptor says. A host that follows the box (PH adds
+    // +8) then shows the same clock the receiver does.
     const gmaJstMillis = Date.UTC(2023, 8, 14, 6, 24, 22); // the field as mjdBCDToUnixEpoch hands it over
-    const gmaUtc = totWallClockToUnixMillis(gmaJstMillis, 0);
-    assert.equal(gmaUtc, Date.UTC(2023, 8, 14, 15, 24, 22), "the field is UTC when it declares 0");
-    assert.equal(new Date(gmaUtc + 480 * 60000).toISOString(), "2023-09-14T23:24:22.000Z");
+    assert.equal(totFieldUnixMillis(gmaJstMillis), Date.UTC(2023, 8, 14, 15, 24, 22));
+    assert.equal(new Date(totFieldUnixMillis(gmaJstMillis) + 480 * 60000).toISOString(), "2023-09-14T23:24:22.000Z");
 
-    const tv5 = totWallClockToUnixMillis(Date.UTC(2021, 4, 24, 16, 38, 5), 480); // field 01:38 as JST
-    assert.equal(new Date(tv5 + 480 * 60000).toISOString(), "2021-05-25T01:38:05.000Z");
-
-    const phNegative = [{ tag: "localTimeOffset", offsets: [{ countryCode: 0x50484c, localTimeOffsetPolarity: true, localTimeOffset: 0x0800 }] }];
+    const tv5JstMillis = Date.UTC(2021, 4, 24, 16, 38, 5); // field 01:38 as JST
+    assert.equal(totFieldUnixMillis(tv5JstMillis), Date.UTC(2021, 4, 25, 1, 38, 5), "TV5's 01:38 stays 01:38");
+    assert.equal(totWallClockToUnixMillis(tv5JstMillis, 480), totFieldUnixMillis(tv5JstMillis), "the offset argument is inert");
+const phNegative = [{ tag: "localTimeOffset", offsets: [{ countryCode: 0x50484c, localTimeOffsetPolarity: true, localTimeOffset: 0x0800 }] }];
     assert.equal(effectiveStreamOffsetMinutes(phNegative), 480, "a PH stream cannot be west of UTC: the magnitude is the offset, as TV5's 0x03 shows");
     assert.equal(streamClockOffsetMinutes(phNegative), 480, "the page clock is still Filipino time");
     assert.equal(streamClockOffsetMinutes(null), 540, "no descriptor: JST as before");

@@ -35,12 +35,20 @@ export function resolveLocalTimeOffset(
     streamOffsetMinutes: number | null,
     defaultOffsetMinutes: number = JST_OFFSET_MINUTES,
 ): number {
-    return hostOffsetMinutes ?? streamOffsetMinutes ?? defaultOffsetMinutes;
+    // The TOT descriptor is INERT on the field receiver: the ABS-CBN TVplus adds +8 to whatever the
+    // time field holds, whatever the descriptor says (PCNX-DTV TimeInjector, hardware test
+    // 2026-10-06), and a sweep of eight PH muxes found the same byte meaning UTC on one mux and
+    // local on another. The engine therefore follows the box: the host's setting wins, else the
+    // default. The stream's declaration stays diagnostic (streamTimeOffsetMinutes) and never moves
+    // the clock.
+    void streamOffsetMinutes;
+    return hostOffsetMinutes ?? defaultOffsetMinutes;
 }
 
 /** Where {@link resolveLocalTimeOffset} took its value from. */
 export function describeLocalTimeOffsetSource(hostOffsetMinutes: number | null, streamOffsetMinutes: number | null): LocalTimeOffsetSource {
-    return hostOffsetMinutes != null ? "host" : streamOffsetMinutes != null ? "stream" : "default";
+    void streamOffsetMinutes;
+    return hostOffsetMinutes != null ? "host" : "default";
 }
 
 /** The offset descriptor as `arib-mmt-tlv-ts` shapes it for a TS (`localTimeOffset`) or an MMT stream. */
@@ -104,8 +112,18 @@ export function localTimeOffsetMinutes(
  * for display therefore shows the broadcaster's own clock.
  */
 export function totWallClockToUnixMillis(jstMillis: number, offsetMinutes: number | null): number {
-    const wallClockMillis = jstMillis + JST_OFFSET_MINUTES * 60_000;
-    return wallClockMillis - (offsetMinutes ?? JST_OFFSET_MINUTES) * 60_000;
+    // Kept for the tests that pinned the old shape; the offset no longer applies.
+    void offsetMinutes;
+    return totFieldUnixMillis(jstMillis);
+}
+
+/**
+ * The TOT time field exactly as the broadcaster sent it, as epoch millis with the wall clock read
+ * as UTC. No descriptor applies: the receiver ignores it, so the engine does too, and a host that
+ * follows the box (PH: add +8:00) shows the same clock the viewer sees.
+ */
+export function totFieldUnixMillis(jstMillis: number): number {
+    return jstMillis + JST_OFFSET_MINUTES * 60_000;
 }
 /** A broadcast wall clock: the fields a page declares, in the stream's local time. */
 export interface BroadcastWallClock {

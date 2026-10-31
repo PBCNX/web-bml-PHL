@@ -129,9 +129,9 @@ function decodeTS(options) {
         // if it were JST, so add that back to recover the wall clock, then subtract the field's own
         // offset to get UTC. The page clock is displayed in the broadcaster's zone (PH is +8:00
         // whatever the field says), which is `offset` in the message.
-        const fieldOffset = (0, time_offset_1.effectiveStreamOffsetMinutes)(section.descriptors);
-        const offset = (0, time_offset_1.streamClockOffsetMinutes)(section.descriptors);
-        const time = (0, time_offset_1.totWallClockToUnixMillis)((0, utils_js_1.mjdBCDToUnixEpoch)(section.jstTime) * 1000, fieldOffset);
+        // Verbatim: the field as sent, and the declared offset only as data (the box ignores it).
+        const offset = (0, time_offset_1.effectiveStreamOffsetMinutes)(section.descriptors);
+        const time = (0, time_offset_1.totFieldUnixMillis)((0, utils_js_1.mjdBCDToUnixEpoch)(section.jstTime) * 1000);
         if (currentTime !== time || localTimeOffset !== offset) {
             currentTime = time;
             localTimeOffset = offset;

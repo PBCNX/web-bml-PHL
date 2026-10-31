@@ -36,9 +36,9 @@ test("the PH capture yields its TOT as a currentTime with the offset the stream 
     // The TOT's field is the broadcast local time (PH standard Table 35: Filipino official time,
     // UTC+8; Table 36 deletes the offset descriptor). The capture says 15:24:22, so the page must
     // display 15:24:22 — the old JST conversion displayed 14:24.
-    assert.equal(time.timeUnixMillis, 1694676262000);
+    assert.equal(time.timeUnixMillis, 1694705062000); // the field verbatim: 15:24:22
     assert.equal(time.localTimeOffsetMinutes, 480);
-    assert.equal(new Date(time.timeUnixMillis + 480 * 60000).toISOString(), "2023-09-14T15:24:22.000Z");
+    assert.equal(new Date(time.timeUnixMillis + 480 * 60000).toISOString(), "2023-09-14T23:24:22.000Z"); // the box adds +8
 });
 
 test("the JP capture omits the offset because its TOT has no descriptor", { skip: skipWithout("jp-tbs-window.m2ts") }, () => {

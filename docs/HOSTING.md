@@ -48,6 +48,16 @@ profile's look.
 
 ## Clock
 
+The engine reports the TOT **field verbatim** and the descriptor verbatim (diagnostic). The receiver
+ignores the descriptor: the ABS-CBN TVplus adds +8 to whatever the field holds (PCNX-DTV TimeInjector,
+hardware test 2026-10-06), and a sweep of eight PH muxes found the same byte meaning UTC on one mux
+and local on another. So a host should follow the box, not the descriptor: set
+`timeZoneOffsetMinutes: 480` for a PH receiver and display the field plus that offset. GMA's UTC field
+then reads 23:24 and TV5's local field reads eight hours ahead — which is what the box shows.
+
+Do not "correct" with the descriptor: a tool that does will disagree with the receiver the viewer is
+watching.
+
 The engine takes the offset from the stream's TOT. Pass `timeZoneOffsetMinutes: 480` only for
 streams that declare none (or declare a zero from another country).
 
