@@ -48,6 +48,12 @@ Keep: all `BMLPH-*` files, `OFL-BMLPH-Sans.txt`, `LICENSE.txt`, `AUTHORS.txt`, `
       2.4.0); check the server routes still resolve.
 - [ ] `fonts/package.json` — `files` list is `*.woff2`, `*.ttf`, `*.txt`, `README.md`; no change needed.
 
+## README
+
+- [ ] Replace `README.md` with [`docs/README-3.0.0.md`](README-3.0.0.md): branch table, change list with
+      citations, and "`v2.4.0` is the last tree with the old files".
+- [ ] no private working-note name or rule ID appears in a public file: `git grep -ni 'isdb\?tph\|bml-\(clk\|font\|snd\)' -- ':!dist'` must return nothing. Rules are cited by document and section (NTC MC 07-12-2014, ARIB STD-B24, TR-B14, ABNT NBR 15608-x).
+
 ## Version and changelog
 
 - [ ] `package.json` and `fonts/package.json` → `3.0.0`.
