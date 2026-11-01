@@ -88,7 +88,7 @@ function metrics(file) {
             return { empty: true };
         }
         // glyf header: numberOfContours (2), xMin (2), yMin (2), xMax (2), yMax (2)
-        return { xMin: glyf.readInt16BE(start + 2), xMax: glyf.readInt16BE(start + 6), empty: false };
+        return { xMin: glyf.readInt16BE(start + 2), yMin: glyf.readInt16BE(start + 4), xMax: glyf.readInt16BE(start + 6), yMax: glyf.readInt16BE(start + 8), empty: false };
     };
     return { unitsPerEm, advance, bounds };
 }
@@ -126,6 +126,30 @@ test("the base letters and their accents share a width", () => {
             }
             assert.ok(Math.abs((a.xMax - a.xMin) - (b.xMax - b.xMin)) <= 2,
                 `${face}: U+${accented.toString(16)} ink differs from U+${base.toString(16)}`);
+        }
+    }
+});
+
+// BMLPLAYER's follow-up: Greek and Cyrillic must keep their relative sizes. One scale per script, and
+// the capitals of each script agree with each other (they are the same design size).
+test("Greek and Cyrillic keep one size per script", () => {
+    for (const face of faces) {
+        const { bounds } = metrics(join(fontDir, face));
+        const caps = [0x410, 0x412, 0x415, 0x41a, 0x41c, 0x41d, 0x41e, 0x420, 0x421, 0x422];
+        const heights = caps.map((cp) => {
+            const b = bounds(cp);
+            assert.ok(b && !b.empty, `${face}: U+${cp.toString(16)} missing`);
+            return b.yMax - b.yMin;
+        });
+        const min = Math.min(...heights);
+        const max = Math.max(...heights);
+        assert.ok(max - min <= min * 0.12, `${face}: Cyrillic capitals differ in size (${min}..${max})`);
+        for (let code = 0x370; code <= 0x4ff; code++) {
+            const b = bounds(code);
+            if (!b || b.empty) {
+                continue;
+            }
+            assert.ok(b.yMax - b.yMin <= 1000, `${face}: U+${code.toString(16)} is taller than the em box`);
         }
     }
 });

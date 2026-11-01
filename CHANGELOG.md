@@ -3,6 +3,15 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.2.2 — one size per script
+
+- 2.2.1 scaled each Greek and Cyrillic glyph on its own to fill the 1 em cell, so the letters no longer
+  agreed in height (Cyrillic а 782 vs е 567). Now **one scale per script**: the capitals match the kana
+  height, the design keeps its relative sizes, and only a glyph that would leave the cell is squeezed
+  horizontally. Measured: Cyrillic capitals 708–911 (the taller ones carry descenders), lowercase
+  524–709; Greek capitals 719, lowercase 560–990.
+- `test/fonts-ink.test.mjs` now also fails if a Greek/Cyrillic glyph is taller than the em box or if
+  the Cyrillic capitals differ in size by more than 12%.
 ## 2.2.1 — the accents back in their cells
 
 - 2.2.0 rebuilt the face from the full source and lost the accent fitting: `ñ`/`Ñ`/`À`/`Ó` were drawn
