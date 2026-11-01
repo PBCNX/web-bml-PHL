@@ -223,6 +223,7 @@ class BMLBrowser {
         const locks = diagnostics.describeLocks();
         const tables = diagnostics.describeTables();
         const errors = diagnostics.describeScripts();
+        const audioCodecs = this.resources.audioCodecs;
         const pendingByReason = {};
         for (const pending of resources.pending) {
             pendingByReason[pending.reason] = (pendingByReason[pending.reason] ?? 0) + 1;
@@ -304,6 +305,7 @@ class BMLBrowser {
             tables,
             errors,
             streamErrors: diagnostics.describeStreamErrors(),
+            audioCodecs,
             events: diagnostics.describeEvents(),
             health: {
                 pendingByReason,

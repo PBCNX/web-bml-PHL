@@ -130,6 +130,8 @@ class Resources {
     }
     cachedComponents = new Map();
     downloadComponents = new Map();
+    /** 2.3.4: the audio codec the demuxer sniffed, per component, for the diagnostics snapshot. */
+    audioCodecRecords = new Map();
     getCachedFileBlobUrl(file, key) {
         let b = file.blobUrl.get(key)?.blobUrl;
         if (b != null) {
@@ -270,6 +272,10 @@ class Resources {
             return true;
         }
         return requestCanceled;
+    }
+    /** The audio codecs reported by the demuxer, for getDiagnostics() and status bars. */
+    get audioCodecs() {
+        return [...this.audioCodecRecords.values()];
     }
     componentExistsInDownloadInfo(componentId) {
         return this.downloadComponents.has(componentId);
@@ -419,6 +425,16 @@ class Resources {
                 this.setReceivingStatus();
             }
             this.eventTarget.dispatchEvent(new CustomEvent("moduleupdated", { detail: { componentId: msg.componentId, dataEventId: msg.dataEventId, moduleId: msg.moduleId, version: msg.version } }));
+        }
+        else if (msg.type === "audioCodec") {
+            this.audioCodecRecords.set(msg.componentId, {
+                componentId: msg.componentId,
+                pid: msg.pid,
+                streamType: msg.streamType,
+                codec: msg.codec,
+                expectedCodec: msg.expectedCodec,
+                labelAgrees: msg.labelAgrees,
+            });
         }
         else if (msg.type === "moduleListUpdated") {
             const component = {

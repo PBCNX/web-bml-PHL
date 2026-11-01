@@ -146,6 +146,8 @@ export declare class Resources {
     get currentDataEventId(): number | null;
     private cachedComponents;
     private downloadComponents;
+    /** 2.3.4: the audio codec the demuxer sniffed, per component, for the diagnostics snapshot. */
+    private readonly audioCodecRecords;
     getCachedFileBlobUrl(file: CachedFile, key?: any): string;
     private lockedComponents;
     private pmtComponents;
@@ -160,6 +162,15 @@ export declare class Resources {
     private revokeCachedModule;
     private revokeCachedComponent;
     unlockModule(componentId: number, moduleId: number, lockedBy: "lockModuleOnMemory" | "lockModuleOnMemoryEx"): boolean;
+    /** The audio codecs reported by the demuxer, for getDiagnostics() and status bars. */
+    get audioCodecs(): {
+        componentId: number;
+        pid: number;
+        streamType: number;
+        codec: string;
+        expectedCodec: string | null;
+        labelAgrees: boolean;
+    }[];
     componentExistsInDownloadInfo(componentId: number): boolean;
     getDownloadComponentInfo(componentId: number): DownloadComponentInfo | undefined;
     moduleExistsInDownloadInfo(componentId: number, moduleId: number): boolean;

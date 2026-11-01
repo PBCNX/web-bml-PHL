@@ -3,6 +3,12 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.3.4 — the audio codec in the diagnostics snapshot
+
+- `getDiagnostics()` now carries `audioCodecs`: one record per component with `codec`, `expectedCodec`
+  and `labelAgrees`, the same facts the `audioCodec` message reports. A host that polls the snapshot
+  (the editor does, once a second) can surface "this mux lies" without subscribing to the message
+  stream — asked for by the editor session, and it is the ALLTV case an author should be told about.
 ## 2.3.3 — a DII that spans sections
 
 - The DII index kept only the **first section** of a transaction: a DII that spans

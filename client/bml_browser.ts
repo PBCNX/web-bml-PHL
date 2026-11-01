@@ -44,6 +44,12 @@ export type DiagnosticsSnapshot = {
     errors: ScriptRecord[],
     /** messages the stream's own error channel sent, which the page itself cannot see */
     streamErrors: StreamErrorRecord[],
+    /**
+     * 2.3.4: the audio codec each component actually carries, as the demuxer sniffed it, with the
+     * PMT's claim beside it. A host that polls the snapshot can surface "this mux lies" without
+     * subscribing to the message stream.
+     */
+    audioCodecs: { componentId: number, pid: number, streamType: number, codec: string, expectedCodec: string | null, labelAgrees: boolean }[],
     events: BeventRecord[],
     health: {
         pendingByReason: Record<string, number>,
@@ -406,6 +412,7 @@ export class BMLBrowser {
         const locks = diagnostics.describeLocks();
         const tables = diagnostics.describeTables();
         const errors = diagnostics.describeScripts();
+        const audioCodecs = this.resources.audioCodecs;
 
         const pendingByReason: Record<string, number> = {};
         for (const pending of resources.pending) {
@@ -488,6 +495,7 @@ export class BMLBrowser {
             tables,
             errors,
             streamErrors: diagnostics.describeStreamErrors(),
+            audioCodecs,
             events: diagnostics.describeEvents(),
             health: {
                 pendingByReason,
