@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Content = exports.AribKeyCode = void 0;
 exports.keyCodeToAribKey = keyCodeToAribKey;
+exports.requestAnimationFrameAsync = requestAnimationFrameAsync;
 const profile_1 = require("./profile");
 const time_offset_1 = require("./time_offset");
 const media_type_1 = require("./media/media_type");
@@ -168,9 +169,22 @@ function keyCodeToAribKey(keyCode) {
             return -1;
     }
 }
-function requestAnimationFrameAsync() {
-    return new Promise((resolve, _) => {
-        requestAnimationFrame((_time) => resolve());
+function requestAnimationFrameAsync(timeoutMillis = 100) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+            if (!settled) {
+                settled = true;
+                resolve();
+            }
+        };
+        requestAnimationFrame(() => finish());
+        // 2.4.4: a hidden, occluded or background window throttles or stops requestAnimationFrame, and
+        // this promise is awaited in the middle of loadDocument — the page then stays "loading" for
+        // ever even though every module arrived (BMLPLAYER, ABS 3201: startup.bml still loading at
+        // 190 s with all 19 modules in at 14 s). The timer is the floor: normally rAF wins at ~16 ms,
+        // and a throttled document still settles instead of hanging the load.
+        setTimeout(finish, timeoutMillis);
     });
 }
 /**

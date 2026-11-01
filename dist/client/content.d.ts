@@ -39,6 +39,7 @@ export declare enum AribKeyCode {
     Hash = 102
 }
 export declare function keyCodeToAribKey(keyCode: string): AribKeyCode | -1;
+export declare function requestAnimationFrameAsync(timeoutMillis?: number): Promise<void>;
 export type LaunchDocumentOptions = {
     withLink?: boolean;
 };

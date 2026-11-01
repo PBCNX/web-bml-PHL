@@ -183,9 +183,22 @@ type KeyProcessStatus = {
     isAccessKey: boolean,
 };
 
-function requestAnimationFrameAsync(): Promise<void> {
-    return new Promise<void>((resolve, _) => {
-        requestAnimationFrame((_time) => resolve());
+export function requestAnimationFrameAsync(timeoutMillis = 100): Promise<void> {
+    return new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+            if (!settled) {
+                settled = true;
+                resolve();
+            }
+        };
+        requestAnimationFrame(() => finish());
+        // 2.4.4: a hidden, occluded or background window throttles or stops requestAnimationFrame, and
+        // this promise is awaited in the middle of loadDocument — the page then stays "loading" for
+        // ever even though every module arrived (BMLPLAYER, ABS 3201: startup.bml still loading at
+        // 190 s with all 19 modules in at 14 s). The timer is the floor: normally rAF wins at ~16 ms,
+        // and a throttled document still settles instead of hanging the load.
+        setTimeout(finish, timeoutMillis);
     });
 }
 

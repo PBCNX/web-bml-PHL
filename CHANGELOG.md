@@ -3,6 +3,14 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.4.4 — a stopped frame clock no longer holds the load
+
+- `loadDocument` awaited `requestAnimationFrame` between unloading and parsing with **no floor**. A
+  hidden, occluded or background window throttles or stops rAF, so the load promise never settled and
+  the page stayed "loading" for ever with every module already in — BMLPLAYER on ABS 3201: startup.bml
+  still loading at 190 s, all 19 modules received at 14 s. The wait now settles on a timer (100 ms) if
+  the frame does not come, so a throttled document loads instead of hanging.
+- Tested both paths: a no-op rAF settles on the timer, a painting one settles on the frame.
 ## 2.4.3 — an ASCII service name is ASCII
 
 - SDT text that is entirely printable ASCII is now read as ASCII instead of through the ARIB text
