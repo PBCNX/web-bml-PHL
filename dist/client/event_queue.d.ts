@@ -43,16 +43,31 @@ export type SyncChangeEvent = {
     target: HTMLElement;
 };
 export type SyncEvent = SyncFocusEvent | SyncBlurEvent | SyncClickEvent | SyncChangeEvent;
+/** 2.4.5: how many identical ModuleLocked events one module+status may produce per second. */
+export declare const MODULE_LOCKED_BURST_LIMIT = 16;
 export declare class EventDispatcher {
     private readonly eventQueue;
     private readonly bmlDocument;
     private readonly resources;
     private readonly logger;
+    /** 2.4.5: ModuleLocked bursts, keyed by module and status. */
+    private readonly moduleLockedStorm;
     constructor(eventQueue: EventQueue, bmlDocument: BML.BMLDocument, resources: Resources, logger: Logger);
     setCurrentEvent(a: BMLEvent): void;
     setCurrentIntrinsicEvent(a: BMLIntrinsicEvent): void;
     setCurrentBeventEvent(ev: Partial<BMLBeventEvent> & BMLEvent): void;
     resetCurrentEvent(): void;
+    /**
+     * 2.4.5: how many identical ModuleLocked events are allowed in one second per module+status.
+     *
+     * A page that re-locks a module whenever the status is not 0 (ABS's `onLkDMdl` does exactly that:
+     * `unlockModuleOnMemoryEx(mr); lockModuleOnMemoryEx(mr);`) turns one failing lock into an endless
+     * stream when the engine keeps answering with the same failure — /50/3001 is not in the ABS DII, so
+     * the answer is -2 every time. The queue then never leaves `processEventQueue`, timers stop, and the
+     * host sees a frozen page (BMLPLAYER, ABS 3201, 2026-11-02). One page mistake must not stop the
+     * receiver, so the burst is capped and logged once.
+     */
+    allowedModuleLockedEvent(module: string, status: number, now: number): boolean;
     dispatchModuleLockedEvent(module: string, isEx: boolean, status: number): void;
     dispatchTimerFiredEvent(status: number, beitem: Element): void;
     dispatchDataButtonPressedEvent(): void;

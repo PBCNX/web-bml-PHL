@@ -1,14 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EventQueue = exports.EventDispatcher = void 0;
+exports.EventQueue = exports.EventDispatcher = exports.MODULE_LOCKED_BURST_LIMIT = void 0;
 // BML is a runtime namespace here (nodeToBMLNode), so this edge stays a value import.
 const bml_dom_1 = require("./dom/bml_dom");
 const format_1 = require("./format");
+/** 2.4.5: how many identical ModuleLocked events one module+status may produce per second. */
+exports.MODULE_LOCKED_BURST_LIMIT = 16;
 class EventDispatcher {
     eventQueue;
     bmlDocument;
     resources;
     logger;
+    /** 2.4.5: ModuleLocked bursts, keyed by module and status. */
+    moduleLockedStorm = new Map();
     constructor(eventQueue, bmlDocument, resources, logger) {
         this.eventQueue = eventQueue;
         this.bmlDocument = bmlDocument;
@@ -56,7 +60,37 @@ class EventDispatcher {
     resetCurrentEvent() {
         this.bmlDocument._currentEvent = new bml_dom_1.BML.BMLEvent({ type: undefined, target: null });
     }
+    /**
+     * 2.4.5: how many identical ModuleLocked events are allowed in one second per module+status.
+     *
+     * A page that re-locks a module whenever the status is not 0 (ABS's `onLkDMdl` does exactly that:
+     * `unlockModuleOnMemoryEx(mr); lockModuleOnMemoryEx(mr);`) turns one failing lock into an endless
+     * stream when the engine keeps answering with the same failure — /50/3001 is not in the ABS DII, so
+     * the answer is -2 every time. The queue then never leaves `processEventQueue`, timers stop, and the
+     * host sees a frozen page (BMLPLAYER, ABS 3201, 2026-11-02). One page mistake must not stop the
+     * receiver, so the burst is capped and logged once.
+     */
+    allowedModuleLockedEvent(module, status, now) {
+        const key = `${module}:${status}`;
+        const entry = this.moduleLockedStorm.get(key);
+        if (entry == null || now - entry.firstAt > 1000) {
+            this.moduleLockedStorm.set(key, { count: 1, firstAt: now });
+            return true;
+        }
+        entry.count++;
+        return entry.count <= exports.MODULE_LOCKED_BURST_LIMIT;
+    }
     dispatchModuleLockedEvent(module, isEx, status) {
+        if (!this.allowedModuleLockedEvent(module, status, performance.now())) {
+            // Log once per second at most: the page loops, the log must not.
+            const key = `${module}:${status}`;
+            const entry = this.moduleLockedStorm.get(key);
+            if (entry != null && !entry.reported) {
+                entry.reported = true;
+                this.logger.error(`ModuleLocked burst`, module, status, `more than ${exports.MODULE_LOCKED_BURST_LIMIT} in one second; suppressed`);
+            }
+            return;
+        }
         this.logger.debug(`ModuleLocked`, module);
         const moduleLocked = bml_dom_1.BML.bmlNodeToNode(this.bmlDocument.documentElement).querySelectorAll("beitem[type=\"ModuleLocked\"]");
         const { componentId, moduleId } = this.resources.parseURLEx(module);
