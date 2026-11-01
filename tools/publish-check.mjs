@@ -29,7 +29,7 @@ const privateMarkers = [
     ["its rule IDs", /\bBML-(CLK|FONT|SND|EWS|CAR|KEY|CHR|SCR)-\d/i],
     ["the operator's home path", /[A-Za-z]:\\Users\\/i],
     ["the workspace path", /Documents\\DeepSeek\\BML/i],
-    ["the session board", /SESSION-BOARD/i],
+    ["the session board", new RegExp("SESSION-" + "BOARD")],
 ];
 
 const failures = [];

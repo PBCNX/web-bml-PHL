@@ -34,9 +34,11 @@ kept as-is; this fork adds the changes a receiver needs to run the BML Philippin
   as a path segment (`nvram:///03/group/30`), as BS-TBS writes it.
 - **Pointer** — `clickAt(x, y)` and `elementAt(x, y)` treat a pointer as the remote: closed shadow
   root, `--nav-index` owner, the same `focus` → `click` → `href` path the Enter key takes.
-- **Typeface** — **BML-PH Sans** (Noto Sans Mono CJK JP derived), with **BML-PH Sans Lite** for a tight
-  budget and **BML-PH RoundGothic** (Kosugi-based) as the alternative look. The ARIB family names stay,
-  because pages and DRCS glyphs use them.
+- **Typeface** — **BML-PH Sans** (Noto Sans Mono CJK JP derived) in all six slots, with
+  **BML-PH Sans Lite** for a tight budget and **BML-PH RoundGothic** (Kosugi-based) as an opt-in
+  setting. The ARIB family names stay, because pages and DRCS glyphs use them; putting the maru face
+  in `roundGothic` would make every unlabelled page rounded, which is the spec's initial value but
+  not the look this profile ships by default.
 
 Each change, its source and the measurement behind it: [`docs/PATCHES.md`](docs/PATCHES.md).
 

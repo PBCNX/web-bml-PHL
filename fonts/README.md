@@ -14,8 +14,11 @@ registers into its static path (see [`../docs/HOSTING.md`](../docs/HOSTING.md)).
 | **BML-PH RoundGothic** | `BMLPH-RoundGothic-Regular.woff2` / `.ttf` | 1.37 MB | 3.0 MB | the Kosugi/maru look, same coverage; no bold cut |
 
 The family names are the page-visible contract: the ARIB names (`丸ゴシック`, `角ゴシック`, `太丸ゴシック`)
-are what a page's CSS names, and the face behind them is the host's choice. BML-PH Sans is the
-profile default; BML-PH RoundGothic is the alternative look (Kosugi has no bold, so CSS synthesizes it).
+are what a page's CSS names, and the face behind them is the host's choice. **The default mapping is
+uniform BML-PH Sans in all six slots** (decision 2026-11-02): the spec's initial `font-family` is
+round gothic, so a page that names nothing would otherwise be rounded while the rest of the page is
+square. BML-PH RoundGothic is the opt-in look — a host that ships it should offer it as a setting
+(Kosugi has no bold, so CSS synthesizes it).
 
 ## The cell
 

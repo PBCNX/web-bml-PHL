@@ -40,8 +40,17 @@ loading (register one `@font-face` per chunk with the matching `unicodeRange`).
 The `.ttf` files are for Windows install (Settings > Fonts lists both families).
 
 **2.3.0 adds the alternative look:** `BMLPH-RoundGothic-Regular.woff2` (family `BML-PH RoundGothic`,
-Kosugi-based, same cell and coverage). Point the same keys at it when a host wants the classic maru
-face; nothing else changes. There is no bold cut — CSS synthesizes it.
+Kosugi-based, same cell and coverage). There is no bold cut — CSS synthesizes it.
+
+**Decision (2026-11-02): the default mapping is uniform Sans.** Point `roundGothic` at
+`BMLPH-Sans-Regular.woff2` too, as in the block above. The spec's initial `font-family` is
+`"丸ゴシック"` (STD-B24 A2-4.4.8), so a page that names nothing lands in the `roundGothic` slot; filling
+that slot with the maru face makes every unlabelled page rounded, and mixing it with a square page is
+a visible change from the single face hosts shipped before. Uniform Sans is a **deliberate departure
+from that initial value**, recorded here so it is not "fixed" back by accident.
+
+A host that ships both faces should offer the look as a **setting**, not a build: default
+`BML-PH Sans`, option `BML-PH RoundGothic` in all six slots.
 
 **3.0.0 removes the old faces.** `MPLUS1Code*`, `MPLUS1P`, `PHLatin` and `Kosugi*` go; the option keys
 stay exactly as they are. After 3.0.0 the `phLatin` slot ships no default file — register `BML-PH Sans`
