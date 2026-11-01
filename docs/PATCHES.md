@@ -25,7 +25,7 @@ Every change this fork makes, with the standard's clause and the measurement beh
 | C8 | key id allocated per service area | not engine |
 | C9 | Ginga removed | not engine |
 | C10 | `data_component_id` 0x0C / 0x0D | done |
-| C11 | `audio/X-arib-mpeg4-aac` | engine side done; the PH band carries LATM, ADTS or MPEG-1 Layer II and may mislabel it, so the engine sniffs the payload and reports `audioCodec` |
+| C11 | `audio/X-arib-mpeg4-aac` | engine side done; the PH band carries LATM, ADTS or MPEG-1 Layer II, may mislabel it, and a PES payload can start mid-frame, so the engine scans for a sync word and reports `audioCodec` |
 | C12 | `video/X-arib-H264-high` | engine side done; every measured PH mux is H.264 (playback in a host still unproven) |
 | C13 | monospaced face covering PH text | engine side done |
 | C14 | 139 EWBS area codes, coverage | done |

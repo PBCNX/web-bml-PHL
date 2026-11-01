@@ -260,7 +260,7 @@ function decodeTS(options) {
             const payload = packet.data.subarray(offset);
             if (payload.length >= 9 && payload[0] === 0 && payload[1] === 0 && payload[2] === 1) {
                 const headerLength = 9 + payload[8];
-                const codec = (0, audio_codec_js_1.sniffAudioCodec)(payload.subarray(headerLength, headerLength + 16));
+                const codec = (0, audio_codec_js_1.sniffAudioCodec)(payload.subarray(headerLength));
                 if (codec != null) {
                     sniffedAudio.add(packet.pid);
                     send({

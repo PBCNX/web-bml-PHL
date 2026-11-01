@@ -3,6 +3,13 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.2.6 — sniff past a mid-frame PES start
+
+- OpenDTV-MOD's correction: on 479.143/497.143 the first PES payload begins **mid-frame** (`8c 85 98
+  a2…`), with 37 and 20 ADTS sync words later in the same payload. 2.2.5's sniff looked at byte 0 and
+  would have called those unknown. It now scans up to 1 KiB for the first sync word, the same way an
+  ADTS reader resyncs, and the mid-frame case has a test.
+- No protocol change: `audioCodec` still reports once per PID.
 ## 2.2.5 — the audio codec is what the bytes say
 
 - **New `audioCodec` message.** The engine sniffs the first payload bytes of each audio component and

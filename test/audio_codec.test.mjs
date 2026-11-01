@@ -10,7 +10,9 @@ test("the four audio signatures are told apart", () => {
     assert.equal(sniffAudioCodec([0xff, 0xfc, 0x84, 0x00]), "mp2", "MPEG-1 Layer II");
     assert.equal(sniffAudioCodec([0x56, 0xe0, 0xf9, 0xfb]), "latm", "LOAS/LATM");
     assert.equal(sniffAudioCodec([0x0b, 0x77, 0x00, 0x00]), "ac3", "AC-3");
-    assert.equal(sniffAudioCodec([0x21, 0x1d, 0x47, 0x8c]), null, "raw AAC is not ADTS");
+    assert.equal(sniffAudioCodec([0x21, 0x1d, 0x47, 0x8c]), null, "no sync word in the window");
+    // OpenDTV-MOD's correction: a PES can begin mid-frame; the sync word is later in the payload.
+    assert.equal(sniffAudioCodec([0x8c, 0x85, 0x98, 0xa2, 0x11, 0x22, 0xff, 0xf1, 0x4c, 0x80]), "adts", "mid-frame ADTS");
     assert.equal(sniffAudioCodec([0x00]), null, "too short");
 });
 
