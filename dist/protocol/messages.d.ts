@@ -184,6 +184,10 @@ export type AudioCodecMessage = {
     /** The PMT's stream_type, kept so the host can log a label-vs-payload disagreement. */
     streamType: number;
     codec: "adts" | "latm" | "mp2" | "ac3";
+    /** What the PMT label claims (null when the type names no known audio). */
+    expectedCodec: "adts" | "latm" | "mp2" | "ac3" | null;
+    /** False when the label disagrees with the bytes - the mux lies about this component. */
+    labelAgrees: boolean;
 };
 export type ResponseMessage = PMTMessage | EmergencyInfoMessage | ModuleDownloadedMessage | ModuleListUpdatedMessage | ProgramInfoMessage | CurrentTime | VideoStreamUrlMessage | ErrorMessage | ESEventUpdatedMessage | BITMessage | PCRMessage | PESMessage | AudioCodecMessage;
 //# sourceMappingURL=messages.d.ts.map

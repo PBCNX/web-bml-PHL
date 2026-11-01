@@ -13,6 +13,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isAudioStreamType = isAudioStreamType;
 exports.sniffAudioCodec = sniffAudioCodec;
+exports.codecForStreamType = codecForStreamType;
 /** `stream_type` values that name audio in ISO/IEC 13818-1 / ARIB STD-B10. */
 function isAudioStreamType(streamType) {
     return streamType === 0x03 // MPEG-1 audio
@@ -57,5 +58,24 @@ function sniffAudioCodec(bytes) {
         }
     }
     return null;
+}
+/**
+ * The coding a `stream_type` claims to carry, or null when the type names no audio we know.
+ *
+ * The PH band mislabels audio, so this is only what the table says; `labelAgrees` in the
+ * `audioCodec` message is the comparison a host can trust.
+ */
+function codecForStreamType(streamType) {
+    switch (streamType) {
+        case 0x03:
+        case 0x04:
+            return "mp2";
+        case 0x0f:
+            return "adts";
+        case 0x11:
+            return "latm";
+        default:
+            return null;
+    }
 }
 //# sourceMappingURL=audio_codec.js.map

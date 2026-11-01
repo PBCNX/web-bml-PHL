@@ -3,7 +3,7 @@ import { decodeSIText } from "arib-mmt-tlv-ts/ts/si-text-decoder.js";
 import { bcdTimeToSeconds, mjdBCDToUnixEpoch } from "arib-mmt-tlv-ts/utils.js";
 import { effectiveStreamOffsetMinutes, totFieldUnixMillis } from "../client/time_offset";
 import { PESReader } from "arib-mmt-tlv-ts/ts/pes-reader.js";
-import { isAudioStreamType, sniffAudioCodec } from "../protocol/audio_codec.js";
+import { codecForStreamType, isAudioStreamType, sniffAudioCodec } from "../protocol/audio_codec.js";
 import { unzlibSync } from "fflate";
 import { EntityParser, type MediaType, parseMediaType, entityHeaderToString, parseMediaTypeFromString } from "../client/entity_parser";
 import * as wsApi from "../protocol/messages";
@@ -314,12 +314,15 @@ export function decodeTS(options: DecodeTSOptions) {
                 const codec = sniffAudioCodec(payload.subarray(headerLength));
                 if (codec != null) {
                     sniffedAudio.add(packet.pid);
+                    const expectedCodec = codecForStreamType(component.streamType);
                     send({
                         type: "audioCodec",
                         componentId: component.componentId,
                         pid: component.pid,
                         streamType: component.streamType,
                         codec,
+                        expectedCodec,
+                        labelAgrees: expectedCodec == null || expectedCodec === codec,
                     });
                 }
             }

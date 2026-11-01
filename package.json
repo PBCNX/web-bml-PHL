@@ -1,6 +1,6 @@
 {
   "name": "web-bml",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "main": "./dist/client/bml_browser.js",
   "license": "MIT",
   "scripts": {

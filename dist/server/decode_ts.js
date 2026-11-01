@@ -263,12 +263,15 @@ function decodeTS(options) {
                 const codec = (0, audio_codec_js_1.sniffAudioCodec)(payload.subarray(headerLength));
                 if (codec != null) {
                     sniffedAudio.add(packet.pid);
+                    const expectedCodec = (0, audio_codec_js_1.codecForStreamType)(component.streamType);
                     send({
                         type: "audioCodec",
                         componentId: component.componentId,
                         pid: component.pid,
                         streamType: component.streamType,
                         codec,
+                        expectedCodec,
+                        labelAgrees: expectedCodec == null || expectedCodec === codec,
                     });
                 }
             }

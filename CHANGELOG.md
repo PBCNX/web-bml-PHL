@@ -3,6 +3,13 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.3.1 — the label disagreement, in the message
+
+- `audioCodec` now also carries `expectedCodec` (what the PMT's `stream_type` claims) and
+  `labelAgrees`. OpenDTV-MOD asked for exactly this field: it lets a host say "this mux lies about this
+  component" without keeping its own table. ALLTV 485.143 → `codec: "adts", expectedCodec: "latm",
+  labelAgrees: false`; 503.143/557.143 → LATM/LATM, `labelAgrees: true`.
+- `codecForStreamType()` exported beside `sniffAudioCodec()` for hosts that demux themselves.
 ## 2.3.0 — BML-PH RoundGothic
 
 - **New face:** `BML-PH RoundGothic`, the Kosugi/maru look with the Sans face's cell and coverage:

@@ -25,4 +25,11 @@ export declare function isAudioStreamType(streamType: number): boolean;
  * when no sync word appears in the scanned window.
  */
 export declare function sniffAudioCodec(bytes: Uint8Array | number[]): AudioCodec | null;
+/**
+ * The coding a `stream_type` claims to carry, or null when the type names no audio we know.
+ *
+ * The PH band mislabels audio, so this is only what the table says; `labelAgrees` in the
+ * `audioCodec` message is the comparison a host can trust.
+ */
+export declare function codecForStreamType(streamType: number): AudioCodec | null;
 //# sourceMappingURL=audio_codec.d.ts.map

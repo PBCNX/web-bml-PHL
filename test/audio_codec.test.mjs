@@ -3,7 +3,7 @@
 // stream_type of 0x11 (LATM), and two muxes carry non-ADTS payloads under 0x0F (ADTS).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAudioStreamType, sniffAudioCodec } from "../dist/protocol/audio_codec.js";
+import { codecForStreamType, isAudioStreamType, sniffAudioCodec } from "../dist/protocol/audio_codec.js";
 
 test("the four audio signatures are told apart", () => {
     assert.equal(sniffAudioCodec([0xff, 0xf1, 0x4c, 0x80]), "adts", "ALLTV's bytes");
@@ -23,4 +23,16 @@ test("the audio stream types are the four the band uses", () => {
     for (const t of [0x1b, 0x0d, 0x06, 0x0b]) {
         assert.equal(isAudioStreamType(t), false, `0x${t.toString(16)} is not audio`);
     }
+});
+
+test("the label the PMT claims is mapped for comparison", () => {
+    assert.equal(codecForStreamType(0x03), "mp2");
+    assert.equal(codecForStreamType(0x04), "mp2");
+    assert.equal(codecForStreamType(0x0f), "adts");
+    assert.equal(codecForStreamType(0x11), "latm");
+    assert.equal(codecForStreamType(0x1b), null);
+    // ALLTV: 0x11 claims LATM, the bytes are ADTS - the host should be told they disagree.
+    assert.notEqual(codecForStreamType(0x11), sniffAudioCodec([0xff, 0xf1, 0x4c, 0x80]));
+    // 503.143/557.143: 0x11 claims LATM and the bytes are LATM - agreement.
+    assert.equal(codecForStreamType(0x11), sniffAudioCodec([0x56, 0xe0, 0xf9, 0xfb]));
 });
