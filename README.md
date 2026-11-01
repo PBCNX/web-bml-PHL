@@ -24,7 +24,8 @@ kept as-is; this fork adds the changes a receiver needs to run the BML Philippin
 - **Media** — the PH types (`video/X-arib-H264-high`, `audio/X-arib-mpeg4-aac`) are accepted by type,
   alongside the Japanese ones broadcasters still send.
 - **NVRAM** — the areas can be sized for the PH services (4 KB each).
-- **Typeface** — M PLUS 1 Code / M PLUS 1P as the profile's look, Kosugi as the last resort. The ARIB
+- **Typeface** — **BML-PH Sans** (Noto Sans Mono CJK JP derived), with **BML-PH RoundGothic**
+  (Kosugi-based) as the alternative look. The ARIB
   family names stay, because pages and DRCS glyphs use them.
 
 Each change, its source and the measurement behind it: [`docs/PATCHES.md`](docs/PATCHES.md).
@@ -59,4 +60,4 @@ The repo carries **no broadcaster content**.
 ## Licence
 
 MIT, upstream's [`LICENSE`](LICENSE) kept. The fonts are under SIL OFL 1.1
-([`fonts/OFL-MPLUS1Code.txt`](fonts/OFL-MPLUS1Code.txt), [`fonts/LICENSE.txt`](fonts/LICENSE.txt)).
+([`fonts/OFL-BMLPH-Sans.txt`](fonts/OFL-BMLPH-Sans.txt), [`fonts/LICENSE.txt`](fonts/LICENSE.txt)).

@@ -185,7 +185,7 @@ class BMLBrowser {
         if (options.fonts?.fallback) {
             this.fonts.push(new FontFace(exports.bmlBrowserFontNames.fallback, options.fonts.fallback.source, options.fonts.fallback.descriptors));
         }
-        // C13: the M+ stack's last resort (Kosugi), for a character neither of the other two has.
+        // C13: the last resort, kept for hosts that register a separate face; the shipped one needs none.
         if (options.fonts?.lastResort) {
             this.fonts.push(new FontFace(exports.bmlBrowserFontNames.lastResort, options.fonts.lastResort.source, options.fonts.lastResort.descriptors));
         }

@@ -24,7 +24,7 @@ itself.
 new BMLBrowser({
   fonts: {
     roundGothic:     { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
-    boldRoundGothic: { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" }, // or a bold cut when one ships
+    boldRoundGothic: { source: "url(/fonts/BMLPH-Sans-Bold.woff2)" },
     squareGothic:    { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
     fallback:        { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
     lastResort:      { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
@@ -32,7 +32,7 @@ new BMLBrowser({
 });
 ```
 
-`BMLPH-SansLite-Regular.woff2` is the same face with JIS level 1 only (431 KB instead of 954 KB) for
+`BMLPH-SansLite-Regular.woff2` is the same face with JIS level 1 only (0.58 MB instead of 1.09 MB) for
 hosts with a tight budget; the family name is `BML-PH Sans Lite` and it registers the same way.
 `BMLPH-Sans-{latin-ph,kana,cjk,symbols}.woff2` are unicode-range chunks of the full face for lazy
 loading (register one `@font-face` per chunk with the matching `unicodeRange`).

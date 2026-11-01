@@ -182,29 +182,17 @@ router.get("/rounded-mplus-1m-arib.ttf", async ctx => {
     ctx.body = fs.createReadStream("dist/rounded-mplus-1m-arib.ttf");
 });
 
-// モトヤマルベリ
-router.get("/KosugiMaru-Regular.woff2", async ctx => {
-    const path = require.resolve("web-bml-fonts/KosugiMaru-Regular.woff2");
-    const stat = await fsAsync.stat(path);
-    ctx.response.length = stat.size;
-    ctx.body = fs.createReadStream(path);
-    ctx.set("Content-Type", "font/woff2")
-});
-router.get("/KosugiMaru-Bold.woff2", async ctx => {
-    const path = require.resolve("web-bml-fonts/KosugiMaru-Bold.woff2");
-    const stat = await fsAsync.stat(path);
-    ctx.response.length = stat.size;
-    ctx.body = fs.createReadStream(path);
-    ctx.set("Content-Type", "font/woff2")
-});
-// モトヤシーダ
-router.get("/Kosugi-Regular.woff2", async ctx => {
-    const path = require.resolve("web-bml-fonts/KosugiMaru-Regular.woff2");
-    const stat = await fsAsync.stat(path);
-    ctx.response.length = stat.size;
-    ctx.body = fs.createReadStream(path);
-    ctx.set("Content-Type", "font/woff2")
-});
+// BML-PH Sans, the profile default (2.4.0). BMLPH-RoundGothic-Regular.woff2 is served too, for
+// hosts that want the Kosugi/maru look.
+for (const face of ["BMLPH-Sans-Regular.woff2", "BMLPH-Sans-Bold.woff2", "BMLPH-RoundGothic-Regular.woff2"]) {
+    router.get("/" + face, async ctx => {
+        const path = require.resolve("web-bml-fonts/" + face);
+        const stat = await fsAsync.stat(path);
+        ctx.response.length = stat.size;
+        ctx.body = fs.createReadStream(path);
+        ctx.set("Content-Type", "font/woff2");
+    });
+}
 
 // The demo proxy forwards to whatever URL a page names, so by default it only reaches public
 // addresses and verifies TLS. Both relaxations are explicit opt-ins for a local demo rig.

@@ -100,23 +100,23 @@ export type BMLBrowserFonts = {
      * P13/C13: the Philippine Latin fallback. The BML faces are Japanese and carry no Latin-1
      * accented letters, so a label with `ñ` falls back per character — to a proportional system face,
      * which breaks the half-width cell. This optional face is tried after the BML family and before
-     * `monospace`; if its advances are half an em (the shipped `PHLatin-Regular.woff2` is), the cell
+     * `monospace`; if its advances are half an em (the shipped `BMLPH-Sans-Regular.woff2` is), the cell
      * grid survives. Not registering it is harmless: the page behaves exactly as before.
      */
     phLatin?: BMLBrowserFontFace;
     /**
-     * C13, the all-M+ stack: the face tried after `phLatin` and before `monospace`, for the ranges
-     * the primary face cannot draw. With `MPLUS1Code-Regular.woff2` as `roundGothic` the primary
+     * C13: the face tried after `phLatin` and before `monospace`, for the ranges
+     * the primary face cannot draw. With `BMLPH-Sans-Regular.woff2` as `roundGothic` the primary
      * covers Latin/accents at 0.5 em and kana/kanji at 1 em, but has no full-width forms, half-width
-     * kana or symbols; `MPLUS1P-Regular.woff2` here supplies those at 1 em / 0.5 em / ~1 em. The
+     * kana or symbols; a host that wants a second face here would supply those, but BML-PH Sans needs none. The
      * chain is `"丸ゴシック", "PH Latin", "BML Fallback", "BML Last Resort", monospace` — every step is
      * at the BML cell, so layout does not move. Not registering it is harmless (as before).
      */
     fallback?: BMLBrowserFontFace;
     /**
-     * C13, the M+ stack's last resort: the face tried after `fallback` and before `monospace`, for a
-     * character neither the primary nor `MPLUS1P` has. With the all-M+ configuration that is Kosugi
-     * (`霾`, U+972D, is the one corpus character only it has).
+     * C13: the last resort, tried after `fallback` and before `monospace`, for a
+     * character neither the primary nor the fallback has. With the shipped face there is none (JIS is complete);
+     * (with the shipped face every non-PUA JIS character is in the primary, so this is only for hosts that register their own chain).
      */
     lastResort?: BMLBrowserFontFace;
 };
@@ -372,7 +372,7 @@ export class BMLBrowser {
         if (options.fonts?.fallback) {
             this.fonts.push(new FontFace(bmlBrowserFontNames.fallback, options.fonts.fallback.source, options.fonts.fallback.descriptors));
         }
-        // C13: the M+ stack's last resort (Kosugi), for a character neither of the other two has.
+        // C13: the last resort, kept for hosts that register a separate face; the shipped one needs none.
         if (options.fonts?.lastResort) {
             this.fonts.push(new FontFace(bmlBrowserFontNames.lastResort, options.fonts.lastResort.source, options.fonts.lastResort.descriptors));
         }
