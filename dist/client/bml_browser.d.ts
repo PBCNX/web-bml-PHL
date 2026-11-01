@@ -260,6 +260,12 @@ export declare class BMLBrowser {
      * nothing focusable is under the point.
      */
     clickAt(x: number, y: number): boolean;
+    /**
+     * 2.4.0: the element `clickAt` would act on at these page coordinates (CSS px), or null. A host can
+     * use it for a pointer/cursor without clicking - it answers "is the page at this point", which is
+     * what a hover needs.
+     */
+    elementAt(x: number, y: number): HTMLElement | null;
     getDiagnostics(): DiagnosticsSnapshot;
     /**
      * P2/EWBS: what the receiver does with an alert.

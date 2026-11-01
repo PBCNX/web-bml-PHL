@@ -3,6 +3,20 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.4.1 — `clickAt` inside the closed shadow root
+
+BMLPLAYER tested 2.4.0's `clickAt` on TV5's Channel Guide and it did nothing: `document.elementFromPoint`
+stops at the shadow host, so the engine never saw a page element. Fixed, with the four other findings
+from the same report:
+
+- hit-test on the **root the page lives in** (`ShadowRoot.elementFromPoint`), not `document`;
+- an element only counts when it carries the inherited **`--nav-index`**, and the owner is resolved
+  with `findNavIndex` — focusability alone sent a click on an image inside an object to the object;
+- returns **false on the page root** too, so a host's fallback runs (GMA's single hidden element is not
+  a click the page handles);
+- mirrors the Enter path: `internalSetActive`, `processEventQueue`, and an anchor's `href` (launch or
+  fragment).
+- `elementAt(x, y)` added for a hover/cursor that does not click.
 ## 2.4.0 — the pointer as the remote
 
 - **`clickAt(x, y)`** on `BMLBrowser` (and on the content layer): hit-tests the page at page CSS pixels,

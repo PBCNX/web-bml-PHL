@@ -227,6 +227,14 @@ class BMLBrowser {
     clickAt(x, y) {
         return this.content.clickAt(x, y);
     }
+    /**
+     * 2.4.0: the element `clickAt` would act on at these page coordinates (CSS px), or null. A host can
+     * use it for a pointer/cursor without clicking - it answers "is the page at this point", which is
+     * what a hover needs.
+     */
+    elementAt(x, y) {
+        return this.content.elementAt(x, y);
+    }
     getDiagnostics() {
         const diagnostics = this.resources.diagnostics;
         const page = this.content.inspect();

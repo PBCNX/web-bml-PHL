@@ -130,16 +130,28 @@ export declare class Content {
     private focusHelper;
     unloadAllDRCS(): void;
     /**
-     * 2.4.0: the pointer as the remote. Hit-tests the live page at these coordinates (CSS px), walks up
-     * to the nearest element the profile would focus, then does exactly what Enter does: `focusHelper`
-     * and the same synchronous `click` event, so a page sees `onfocus` before `onclick` as it does from
-     * the remote.
+     * 2.4.0: the pointer as the remote. The element at these coordinates (CSS px) that the profile would
+     * actually focus - the owner of the inherited `--nav-index` - or null.
      *
-     * A host with a pointer (BMLPLAYER's Mouse mode) should call this instead of reaching into the
-     * navigation helpers, which are private for a reason: they describe key order, not hit-testing.
+     * The page lives in a **closed shadow root**, so `document.elementFromPoint` stops at the shadow
+     * host and never sees a page element; the hit test runs on the root the page is in instead
+     * (`ShadowRoot.elementFromPoint`, which BMLPLAYER measured as the working form).
      *
-     * Returns false when nothing focusable is under the point - the host can then fall back to its own
-     * chrome rather than pretending the page took the click.
+     * A hit element only counts when it carries a `--nav-index` (the property is inherited, so the
+     * element at the point may be a child of the owner); the owner is found with the same `findNavIndex`
+     * the remote uses. Accepting anything `isFocusable` - images, the host - sent TV5's Channel Guide
+     * click to the wrong item, so the nav-index is the rule, not focusability alone.
+     */
+    elementAt(x: number, y: number): HTMLElement | null;
+    /**
+     * 2.4.0: the pointer as the remote. Focuses the element `elementAt` finds and does exactly what the
+     * Enter key does: `internalSetActive`, the same synchronous `click` event, `processEventQueue`, and
+     * an anchor's `href` (launch or fragment) - so `onfocus` precedes `onclick` and a link actually
+     * navigates, as on the box.
+     *
+     * Returns false when nothing nav-indexed is under the point, **including the page root**: a host's
+     * fallback must run rather than believe the page took the click (GMA has a single hidden element,
+     * so a click on the page body is not a click the page handles).
      */
     clickAt(x: number, y: number): boolean;
     private _context;

@@ -70,13 +70,19 @@ A host with a mouse or a touch pointer should call `clickAt(x, y)` rather than d
 or reaching into the navigation helpers:
 
 ```js
-browser.clickAt(pageX, pageY);   // page CSS pixels; false when nothing focusable is under the point
+browser.clickAt(pageX, pageY);      // page CSS pixels; false when the page does not take the click
+browser.elementAt(pageX, pageY);    // the same target without clicking, for a hover/cursor
 ```
 
-It hit-tests, focuses the element under the point and queues the same synchronous `click` the Enter key
-does, so `onfocus` precedes `onclick` exactly as it does from the remote. A `false` return means the
-page did not take the click (empty area, hidden element) — fall back to the host's own chrome instead
-of pretending otherwise.
+Semantics that matter (they were learned from BMLPLAYER's Mouse mode):
+
+- the page lives in a **closed shadow root**, so the hit test runs on that root, not `document`;
+- only an element carrying an inherited `--nav-index` counts — the owner is resolved with the same
+  navigation rule the remote uses, so a click on an image inside an object does not act as the object;
+- a `false` return means the page did not take the click (page root, empty area, no nav-index) — fall
+  back to the host's own chrome instead of pretending otherwise;
+- it does what Enter does: `internalSetActive`, the synchronous `click` event, `processEventQueue`, and
+  an anchor's `href` (launch or fragment).
 ### The pre-2.1.0 M+ stack
 
 The old registration still works and its files still ship (deprecated, removed in 3.0.0):
