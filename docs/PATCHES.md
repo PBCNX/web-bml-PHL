@@ -50,3 +50,21 @@ Every change this fork makes, with the standard's clause and the measurement beh
   (the `ñ` lives in the `.btb` text tables).
 
 The repository carries none of the captures these were measured on.
+
+## Cross-reference: PBCNX/ISDBTph-Standards
+
+The community guide at `PBCNX/ISDBTph-Standards` (`bml-standards-guide.md`) numbers every rule
+(`BML-*`); this file numbers the fork's own changes (`C1`–`C16`, `P1`–`P14`). Where they meet:
+
+| guide rule | what it says | what this engine does |
+|---|---|---|
+| **BML-FONT-06** | code set 0 (ASCII) draws at half the font size wide | every half-width letter advances 0.5 em, ink inside the cell |
+| **BML-FONT-07** | the width of PH-set characters **outside** code set 0 (ñ, symbols) is **not stated** | we keep 0.5 em for ñ and the accented Latin so layout cannot move — a decision, not a rule; the guide lists it as an open question |
+| **BML-FONT-10** | PH font coverage is Table A8-1-2, **not** the Japanese list | BML-PH Sans/RoundGothic are supersets (every non-PUA JIS character plus Latin-1 and the PH set); PH pages lose nothing |
+| **BML-SND-03, BML-SND-10** | PH stream audio is MPEG-4 AAC in **LATM/LOAS**, stream type **0x11** | the demuxer reports `audioCodec` and `labelAgrees` because the band also sends ADTS under 0x11 (ALLTV, measured 2026-11-01) and MPEG-1 Layer II on other muxes; the host sniffs instead of trusting the label |
+| **BML-CLK-01, BML-CLK-02** | official time UTC+8; the `=0` in Table 35 is read as a local offset of 0, so "the TOT field carries local time itself", and the guide marks that reading `unknown` (Q3) | the engine reports the field **verbatim** and the declared offset verbatim; the host applies UTC+8. That is deliberately compatible with both readings — a correction would be wrong under one of them |
+| **BML-CLK-06** | TOT is PID 0x0014, `table_id` 0x73 | parsed there |
+
+Nothing in the guide required a change to the engine; it confirmed the choices and named two of them as
+open questions (the ñ width and the `=0` reading), which is why the engine reports instead of
+correcting.
