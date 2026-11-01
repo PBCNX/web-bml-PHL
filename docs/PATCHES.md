@@ -30,7 +30,7 @@ Every change this fork makes, with the standard's clause and the measurement beh
 | C13 | monospaced face covering PH text | engine side done |
 | C14 | 139 EWBS area codes, coverage | done |
 | C15 | NVRAM areas at 4 KB | engine side done |
-| C16 | the TOT time is the broadcast local time (PH: UTC+8; region/offset/next offset are all 0 — BML-CLK-02, BML-CLK-09) | done |
+| C16 | the TOT time is the broadcast local time (PH: UTC+8; region/offset/next offset are all 0 — MC14 AP5-1 Table 35, ABNT NBR 15608-3 Table 36 deleted) | done |
 
 ## The numbers
 
@@ -51,20 +51,19 @@ Every change this fork makes, with the standard's clause and the measurement beh
 
 The repository carries none of the captures these were measured on.
 
-## Cross-reference: PBCNX/ISDBTph-Standards
+## Standards notes
 
-The community guide at `PBCNX/ISDBTph-Standards` (`bml-standards-guide.md`) numbers every rule
-(`BML-*`); this file numbers the fork's own changes (`C1`–`C16`, `P1`–`P14`). Where they meet:
+Where a change follows the profile, the citation is the document and its section — never a private
+working note. The three that come up most:
 
-| guide rule | what it says | what this engine does |
+| citation | what it fixes | what this engine does |
 |---|---|---|
-| **BML-FONT-06** | code set 0 (ASCII) draws at half the font size wide | every half-width letter advances 0.5 em, ink inside the cell |
-| **BML-FONT-07** | the width of PH-set characters **outside** code set 0 (ñ, symbols) is **not stated** | we keep 0.5 em for ñ and the accented Latin so layout cannot move — a decision, not a rule; the guide lists it as an open question |
-| **BML-FONT-10** | PH font coverage is Table A8-1-2, **not** the Japanese list | BML-PH Sans/RoundGothic are supersets (every non-PUA JIS character plus Latin-1 and the PH set); PH pages lose nothing |
-| **BML-SND-03, BML-SND-10** | PH stream audio is MPEG-4 AAC in **LATM/LOAS**, stream type **0x11** | the demuxer reports `audioCodec` and `labelAgrees` because the band also sends ADTS under 0x11 (ALLTV, measured 2026-11-01) and MPEG-1 Layer II on other muxes; the host sniffs instead of trusting the label |
-| **BML-CLK-01, BML-CLK-02, BML-CLK-09** | the TOT field is the **national time** (PH UTC+8), and `=0` fixes region, `local_time_offset` and `next_time_offset` all at 0 (Q3 answered by reading, 2026-11-01) | the engine reports the field **verbatim** and the descriptor verbatim; the host chooses between "as sent" (the standard: display the field) and "the box" (TVplus adds +8 whatever the descriptor says). Measured 2026-10-31: TV5 sends local time with 0 offsets (matches), GMA sends UTC in the field (departs), ALLTV says BRA, RPTV has TDT only. Our own 2023 TV5 captures declared +8:00 — a vintage difference the guide records as unresolved |
-| **BML-CLK-06** | TOT is PID 0x0014, `table_id` 0x73 | parsed there |
+| NTC MC 07-12-2014 Annex 8-1 §1.2.5; ARIB STD-B24 v5.2 A2-4.4.8; TR-B14 v3.8 Table 1-6 | code set 0 draws at half the font size; no proportional font | every half-width letter advances 0.5 em, ink inside the cell |
+| — (the profile does not state it) | the width of PH-set characters **outside** code set 0 (ñ, symbols) | 0.5 em, a decision so layout cannot move; no rule requires it |
+| NTC MC 07-12-2014 Annex 8-1 §1.2.5, Table A8-1-2 | PH font coverage is the PH table, not the Japanese list | BML-PH Sans/RoundGothic are supersets; PH pages lose nothing |
+| NTC MC 07-12-2014 Annex 8-1 §3.3.2, §5.14.8; ABNT NBR 15608-2 | PH stream audio is MPEG-4 AAC, `audio/X-arib-mpeg4-aac`, stream type 0x11 | the demuxer reports `audioCodec` and `labelAgrees`: the band also sends ADTS at 0x11 (ALLTV, 2026-11-01) and MPEG-1 Layer II elsewhere, so the host sniffs instead of trusting the label |
+| NTC MC 07-12-2014 Annex 5-1 §19.2 and Table 35; ABNT NBR 15608-3 Tables 35 and 36 | the TOT field is the national time (PH UTC+8); Table 36 is deleted and its three fields are 0 | the engine reports the field and the descriptor **verbatim**; the host chooses "as sent" or "the box" (which adds 480). Measured 2026-10-31: TV5 local with 0 offsets, GMA UTC, ALLTV BRA, RPTV TDT only; our 2023 TV5 captures declare +8:00, a vintage difference |
+| ABNT NBR 15608-2 §7.2.9 | TOT is PID 0x0014, `table_id` 0x73 | parsed there |
 
-Nothing in the guide required a change to the engine; it confirmed the choices and named two of them as
-open questions (the ñ width and the `=0` reading), which is why the engine reports instead of
-correcting.
+The profile does not settle the ñ width, and the TOT field's reading rests on a line of the annex that
+does not name the fields it covers. Both are reported, not corrected.

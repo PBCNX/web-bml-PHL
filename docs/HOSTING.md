@@ -111,8 +111,9 @@ A host that registers nothing renders in the browser's monospace — still corre
 profile's look.## Clock
 
 The standard says the TOT field is **national time** — for PH, official Filipino time, UTC+8 — and
-that `=0` fixes region, `local_time_offset` and `next_time_offset` at 0 (BML-CLK-02, BML-CLK-09,
-read 2026-11-01). Under that reading the field **is** the clock and needs no correction.
+that `=0` fixes region, `local_time_offset` and `next_time_offset` at 0 (NTC MC 07-12-2014 Annex 5-1
+§19.2 and Table 35; ABNT NBR 15608-3 Tables 35 and 36). Under that reading the field **is** the clock
+and needs no correction.
 
 The band does not all follow it. Measured 2026-10-31: TV5 sends local time with 0 offsets (matches),
 GMA puts **UTC** in the field (8 hours behind), ALLTV declares BRA, RPTV sends TDT only. The ABS-CBN
