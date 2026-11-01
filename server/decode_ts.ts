@@ -561,16 +561,22 @@ export function decodeTS(options: DecodeTSOptions) {
             const dataEventId = (downloadId >> 28) & 15;
             const modules = new Map<number, DownloadModuleInfo>();
             const transactionId = section.dsmccMessageHeader.transactionId;
-            if (downloadComponents.get(componentId)?.transactionId === section.dsmccMessageHeader.transactionId) {
-                return;
-            }
-            const componentInfo: DownloadComponentInfo = {
-                componentId,
-                modules,
-                transactionId,
-                downloadedModuleCount: 0,
-                dataEventId,
-            };
+            const previous = downloadComponents.get(componentId);
+            // One DII transaction can span several sections (section_number/last_section_number).
+            // Keeping only the first one hid the modules announced by the others - BS-TBS locks
+            // /60/2003..2009 and got "component does not exist in DII" because those lived in a
+            // later section. Merge while the transaction id is unchanged; a new transaction resets.
+            const sameTransaction = previous != null && previous.transactionId === transactionId;
+            const componentInfo: DownloadComponentInfo = sameTransaction
+                ? previous
+                : {
+                    componentId,
+                    modules,
+                    transactionId,
+                    downloadedModuleCount: 0,
+                    dataEventId,
+                };
+            componentInfo.dataEventId = dataEventId;
             // blockSizeは常に4066
             const blockSize = section.blockSize;
             // windowSize, ackPeriod, tCDownloadWindowは常に0
@@ -619,7 +625,7 @@ export function decodeTS(options: DecodeTSOptions) {
             send({
                 type: "moduleListUpdated",
                 componentId,
-                modules: section.modules.map((x) => ({ id: x.moduleId, version: x.moduleVersion, size: x.moduleSize })),
+                modules: [...modules.values()].map((x) => ({ id: x.moduleId, version: x.moduleVersion, size: x.moduleSize })),
                 dataEventId: dataEventId,
                 returnToEntryFlag,
             });

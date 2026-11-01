@@ -3,6 +3,16 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.3.3 — a DII that spans sections
+
+- The DII index kept only the **first section** of a transaction: a DII that spans
+  `section_number`/`last_section_number` announced its modules in several sections, and every section
+  after the first was ignored (and the same-transaction sections were dropped outright). Sections of one
+  transaction are now merged, and the `moduleListUpdated` message carries the merged list; a new
+  transaction still resets the component.
+- Spec-correctness fix, not a reproduction: the BS-TBS capture in hand carries service 161 with data
+  components 96/80/64 and no component 60, so it cannot exercise the `/60/2003…` console lines — those
+  need the file (or the service) where component 60 exists.
 ## 2.3.2 — the NVRAM area a BS page actually asks for
 
 - **Two NVRAM bugs found on BS-TBS (console: `readNVRAM: findNvramArea failed
