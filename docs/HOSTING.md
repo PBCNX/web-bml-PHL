@@ -149,6 +149,16 @@ GMA puts **UTC** in the field (8 hours behind), ALLTV declares BRA, RPTV sends T
 TVplus ignores all of it and adds +8 to whatever the field holds (hardware test 2026-10-06), which is
 why a viewer watching GMA sees the right clock on that box.
 
+The two measured files, with the evidence that makes each reading right:
+
+| mux | TOT field | +480 gives | evidence |
+|---|---|---|---|
+| GMA | 15:24 (UTC) | 23:24 | the capture's own mtime is 2023-09-14 23:29 local — +480 is correct for this file |
+| TV5 | 19:29 (17 Apr, national time) | 03:30 next day | the picture is an ESPN "Saturday Primetime" game, so 19:29 was the local broadcast hour — +480 reads eight hours ahead |
+
+Measured on the set 2026-11-02; the same sweep result as 2026-10-31. So **no single policy is right for
+both muxes** — that is a fact about the air, not about the host.
+
 The engine reports the TOT **field verbatim** and the descriptor verbatim (diagnostic). The host picks
 one policy:
 
