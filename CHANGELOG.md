@@ -3,6 +3,16 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.2.1 — the accents back in their cells
+
+- 2.2.0 rebuilt the face from the full source and lost the accent fitting: `ñ`/`Ñ`/`À`/`Ó` were drawn
+  at the source's wider scale (ink up to 626 in a 500 cell) instead of the base letter's width. Now
+  every accented Latin letter is scaled to its base letter's ink width and centred, as 2.1.0 had —
+  measured: `ñ` ink 379, same as `n`; 0 of 117 letters outside the cell in all four faces.
+- The half-width Latin (U+20–BF) is centred too, so the Bold cut's `&` and `w` stay inside 500.
+- Greek and Cyrillic now fill the 1 em cell (α ink 557 → 782) instead of sitting narrow in it.
+- New `test/fonts-ink.test.mjs` parses the `.ttf` metric boxes and fails if any U+A0–24F letter's ink
+  leaves its cell, or if an accent's ink width differs from its base letter's.
 ## 2.2.0 — the script set
 
 - `BML-PH Sans` now carries what a PH BML page actually mixes: **₱** (U+20B1) at 0.5 em, **half-width
