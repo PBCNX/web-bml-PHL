@@ -30,7 +30,7 @@ Every change this fork makes, with the standard's clause and the measurement beh
 | C13 | monospaced face covering PH text | engine side done |
 | C14 | 139 EWBS area codes, coverage | done |
 | C15 | NVRAM areas at 4 KB | engine side done |
-| C16 | the TOT time is the broadcast local time (PH: UTC+8; descriptor deleted in Table 36) | done |
+| C16 | the TOT time is the broadcast local time (PH: UTC+8; region/offset/next offset are all 0 — BML-CLK-02, BML-CLK-09) | done |
 
 ## The numbers
 
@@ -62,7 +62,7 @@ The community guide at `PBCNX/ISDBTph-Standards` (`bml-standards-guide.md`) numb
 | **BML-FONT-07** | the width of PH-set characters **outside** code set 0 (ñ, symbols) is **not stated** | we keep 0.5 em for ñ and the accented Latin so layout cannot move — a decision, not a rule; the guide lists it as an open question |
 | **BML-FONT-10** | PH font coverage is Table A8-1-2, **not** the Japanese list | BML-PH Sans/RoundGothic are supersets (every non-PUA JIS character plus Latin-1 and the PH set); PH pages lose nothing |
 | **BML-SND-03, BML-SND-10** | PH stream audio is MPEG-4 AAC in **LATM/LOAS**, stream type **0x11** | the demuxer reports `audioCodec` and `labelAgrees` because the band also sends ADTS under 0x11 (ALLTV, measured 2026-11-01) and MPEG-1 Layer II on other muxes; the host sniffs instead of trusting the label |
-| **BML-CLK-01, BML-CLK-02** | official time UTC+8; the `=0` in Table 35 is read as a local offset of 0, so "the TOT field carries local time itself", and the guide marks that reading `unknown` (Q3) | the engine reports the field **verbatim** and the declared offset verbatim; the host applies UTC+8. That is deliberately compatible with both readings — a correction would be wrong under one of them |
+| **BML-CLK-01, BML-CLK-02, BML-CLK-09** | the TOT field is the **national time** (PH UTC+8), and `=0` fixes region, `local_time_offset` and `next_time_offset` all at 0 (Q3 answered by reading, 2026-11-01) | the engine reports the field **verbatim** and the descriptor verbatim; the host chooses between "as sent" (the standard: display the field) and "the box" (TVplus adds +8 whatever the descriptor says). Measured 2026-10-31: TV5 sends local time with 0 offsets (matches), GMA sends UTC in the field (departs), ALLTV says BRA, RPTV has TDT only. Our own 2023 TV5 captures declared +8:00 — a vintage difference the guide records as unresolved |
 | **BML-CLK-06** | TOT is PID 0x0014, `table_id` 0x73 | parsed there |
 
 Nothing in the guide required a change to the engine; it confirmed the choices and named two of them as

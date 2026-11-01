@@ -110,18 +110,25 @@ const mPlus = (file) => ({ source: `url(/fonts/${file})`, descriptors: { unicode
 A host that registers nothing renders in the browser's monospace — still correct, just not the
 profile's look.## Clock
 
-The engine reports the TOT **field verbatim** and the descriptor verbatim (diagnostic). The receiver
-ignores the descriptor: the ABS-CBN TVplus adds +8 to whatever the field holds (PCNX-DTV TimeInjector,
-hardware test 2026-10-06), and a sweep of eight PH muxes found the same byte meaning UTC on one mux
-and local on another. So a host should follow the box, not the descriptor: set
-`timeZoneOffsetMinutes: 480` for a PH receiver and display the field plus that offset. GMA's UTC field
-then reads 23:24 and TV5's local field reads eight hours ahead — which is what the box shows.
+The standard says the TOT field is **national time** — for PH, official Filipino time, UTC+8 — and
+that `=0` fixes region, `local_time_offset` and `next_time_offset` at 0 (BML-CLK-02, BML-CLK-09,
+read 2026-11-01). Under that reading the field **is** the clock and needs no correction.
 
-Do not "correct" with the descriptor: a tool that does will disagree with the receiver the viewer is
-watching.
+The band does not all follow it. Measured 2026-10-31: TV5 sends local time with 0 offsets (matches),
+GMA puts **UTC** in the field (8 hours behind), ALLTV declares BRA, RPTV sends TDT only. The ABS-CBN
+TVplus ignores all of it and adds +8 to whatever the field holds (hardware test 2026-10-06), which is
+why a viewer watching GMA sees the right clock on that box.
 
-The engine takes the offset from the stream's TOT. Pass `timeZoneOffsetMinutes: 480` only for
-streams that declare none (or declare a zero from another country).
+The engine reports the TOT **field verbatim** and the descriptor verbatim (diagnostic). The host picks
+one policy:
+
+- **the box (default for a PH receiver)** — `timeZoneOffsetMinutes: 480`, display the field plus 480.
+  GMA reads correctly; a standard-conforming stream like TV5 reads 8 hours ahead. This is what the
+  viewer's TVplus shows;
+- **as sent (the standard)** — do not add anything; TV5 reads correctly and GMA reads 8 hours behind.
+
+Do not "correct" from the descriptor: it is inert on the box, and the two PH descriptor vintages
+disagree (our 2023 TV5 captures declare +8:00; the 2026 sweep reads 00:00).
 
 ## NVRAM
 
