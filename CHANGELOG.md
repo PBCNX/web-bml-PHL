@@ -3,6 +3,13 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.4.3 — an ASCII service name is ASCII
+
+- SDT text that is entirely printable ASCII is now read as ASCII instead of through the ARIB text
+  decoder. The GMA mux puts `GMA`, `GTV`, `HEART OF ASIA` in its service descriptor, and the decoder
+  turned `GMA` into `罵` (measured on `GMA-BML.ts`, 2026-11-02). Anything with a control or 8-bit byte
+  still goes through the decoder, so `ＢＳ－ＴＢＳ` keeps decoding as before.
+- Applies to `serviceName`, `eventName` and the broadcaster name.
 ## 2.4.2 — the stream's identity in `programInfo`
 
 - `programInfo.serviceName`: the SDT's own name for the selected service, decoded (2.4.2). A host that

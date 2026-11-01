@@ -37,6 +37,20 @@ function emergencyInfoMessages(serviceId, descriptor) {
     }));
 }
 const utf8Decoder = new TextDecoder("utf-8");
+/**
+ * SI text that is plain printable ASCII is ASCII, not ARIB 8-bit text.
+ *
+ * PH muxes put `GMA`, `GTV`, `HEART OF ASIA` straight into the SDT service descriptor; passing those
+ * bytes to the ARIB decoder produced `罵` for `GMA` (measured on GMA-BML.ts, 2026-11-02). A string with
+ * no control byte and no 8-bit byte cannot be ARIB text, so the ASCII reading is the safe one. Anything
+ * else still goes through the decoder.
+ */
+function decodeSITextOrAscii(bytes) {
+    if (bytes.length > 0 && bytes.every((b) => b >= 0x20 && b <= 0x7e)) {
+        return String.fromCharCode(...bytes);
+    }
+    return (0, si_text_decoder_js_1.decodeSIText)(bytes);
+}
 let base64Table = [];
 function toBase64(input) {
     // Node 25からなため
@@ -321,7 +335,7 @@ function decodeTS(options) {
         for (const descriptor of section.broadcasters) {
             let broadcaster_id = descriptor.broadcasterId;
             const broadcasterNameDescriptor = descriptor.broadcasterDescriptors.find((x) => x.tag === "broadcasterName");
-            const broadcasterName = broadcasterNameDescriptor?.name == null ? null : (0, si_text_decoder_js_1.decodeSIText)(broadcasterNameDescriptor?.name);
+            const broadcasterName = broadcasterNameDescriptor?.name == null ? null : decodeSITextOrAscii(broadcasterNameDescriptor?.name);
             const serviceListDescriptor = descriptor.broadcasterDescriptors.find((x) => x.tag === "serviceList");
             const extendedBroadcasterDescriptor = descriptor.broadcasterDescriptors.find((x) => x.tag === "extendedBroadcaster");
             const terDescriptor = extendedBroadcasterDescriptor?.broadcasterType === "terrestrial" ? extendedBroadcasterDescriptor : undefined;
@@ -394,7 +408,7 @@ function decodeTS(options) {
         const indefiniteDuration = event.duration == null;
         const startTimeUnixMillis = event.startTime == null ? null : (0, utils_js_1.mjdBCDToUnixEpoch)(event.startTime) * 1000;
         const shortEvent = event.descriptors.find(x => x.tag === "shortEvent"); // 短形式イベント記述子
-        const eventName = shortEvent == null ? null : (0, si_text_decoder_js_1.decodeSIText)(shortEvent.eventName);
+        const eventName = shortEvent == null ? null : decodeSITextOrAscii(shortEvent.eventName);
         updateProgramInfo({
             eventId,
             eventName,
@@ -420,7 +434,7 @@ function decodeTS(options) {
                         // 2.4.2: the identity a host needs when it plays a file through a UDP driver.
                         const serviceDescriptor = descriptor;
                         if (serviceDescriptor.serviceName != null) {
-                            updateProgramInfo({ serviceName: (0, si_text_decoder_js_1.decodeSIText)(serviceDescriptor.serviceName) });
+                            updateProgramInfo({ serviceName: decodeSITextOrAscii(serviceDescriptor.serviceName) });
                         }
                     }
                 }
@@ -437,7 +451,7 @@ function decodeTS(options) {
             return;
         }
         const shortEventDescriptor = service.descriptors.find((desc) => desc.tag === "shortEvent");
-        const eventName = shortEventDescriptor == null ? null : (0, si_text_decoder_js_1.decodeSIText)(shortEventDescriptor.eventName);
+        const eventName = shortEventDescriptor == null ? null : decodeSITextOrAscii(shortEventDescriptor.eventName);
         const networkId = section.transmissionInfoDescriptors.find((desc) => desc.tag === "networkIdentification")?.networkId;
         let transportStreamId = null;
         let eventId = null;
