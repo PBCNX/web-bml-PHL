@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<!--
+  layout-cell-probe.html — the layout half of the font cell test.
+
+  fonts-ink.test.mjs checks the FILE: that ink stays inside the cell. This checks the LAYOUT: that the
+  browser advances the widths a receiver advances. They are different failures. The one that started this
+  was a layout failure — M PLUS 1 Code drew U+3000 at 0.5 em, so three layers padded with it collided and
+  a TBS page looked broken when it was not.
+
+  Usage: open with ?font=<name>&file=<url-encoded woff2 url>. With no file it measures whatever the page
+  already has. Prints a table and JSON to #out and to document.title, so any harness can scrape it.
+
+  Pass values at 32 px: half-width Latin 16, full-width kana 32, U+3000 32, kanji 32.
+-->
+<html>
+<head>
+<meta charset="utf-8" />
+<title>layout-cell-probe</title>
+<style id="faces"></style>
+<style>
+  body { background: #111; color: #ddd; font: 13px/1.5 Consolas, monospace; margin: 0; padding: 16px; }
+  table { border-collapse: collapse; margin-top: 10px; }
+  th, td { padding: 3px 12px; border-bottom: 1px solid #333; text-align: right; }
+  th { color: #8fa; text-align: left; }
+  .ok { color: #7c7; } .bad { color: #f77; }
+  #out { white-space: pre; margin-top: 12px; color: #9bd; }
+</style>
+</head>
+<body>
+<h3>layout cell probe</h3>
+<div id="which"></div>
+<table id="table"><thead><tr><th>sample</th><th>px @32</th><th>em</th><th>expect</th><th></th></tr></thead><tbody></tbody></table>
+<div id="out"></div>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const family = params.get("font") || "probe";
+  const file = params.get("file");
+
+  // the samples that decide it: one per cell width, plus the one that started all this
+  const SAMPLES = [
+    { label: "half-width Latin A", text: "A", expect: 16, note: "U+0041, 0.5 em cell" },
+    { label: "half-width Latin 0", text: "0", expect: 16, note: "U+0030, 0.5 em cell" },
+    { label: "full-width kana あ", text: "\u3042", expect: 32, note: "U+3042, 1 em cell" },
+    { label: "kanji 日", text: "\u65e5", expect: 32, note: "U+65E5, 1 em cell" },
+    { label: "ideographic space", text: "\u3000", expect: 32, note: "U+3000, 1 em — 0.5 em here is the bug" },
+    { label: "mixed AあA", text: "A\u3042A", expect: 64, note: "16 + 32 + 16" },
+    { label: "two ideographic spaces", text: "\u3000\u3000", expect: 64, note: "the padded-layer case" },
+    { label: "latin with enye", text: "\u00f1", expect: 16, note: "U+00F1, accent inside a 0.5 em cell" },
+  ];
+
+  const out = document.getElementById("out");
+  const tbody = document.querySelector("#table tbody");
+  const result = { family, file: file || null, samples: [], pass: false };
+
+  function render() {
+    let allOk = true;
+    tbody.textContent = "";
+    for (const sample of result.samples) {
+      const ok = Math.abs(sample.px - sample.expect) <= 0.5;
+      if (!ok) allOk = false;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td style="text-align:left">${sample.label}</td><td>${sample.px}</td>` +
+        `<td>${(sample.px / 32).toFixed(3)}</td><td>${sample.expect}</td>` +
+        `<td class="${ok ? "ok" : "bad"}">${ok ? "ok" : "OFF"}</td>`;
+      tbody.append(tr);
+    }
+    result.pass = allOk;
+    out.textContent = JSON.stringify(result, null, 1);
+    document.title = (allOk ? "PASS " : "FAIL ") + JSON.stringify(result.samples.map((s) => s.px));
+  }
+
+  function measure(ctx) {
+    for (const sample of result.samples) {
+      ctx.font = '32px "' + family + '"';
+      sample.px = Math.round(ctx.measureText(sample.text).width * 100) / 100;
+    }
+    render();
+  }
+
+  document.getElementById("which").textContent = "family: " + family + (file ? "  file: " + file : "  (no file — measuring the page's own faces)");
+
+  if (!file) {
+    document.fonts.ready.then(() => measure(document.createElement("canvas").getContext("2d")));
+    return;
+  }
+
+  const style = document.getElementById("faces");
+  style.textContent = `@font-face { font-family: "${family}"; src: url("${file}") format("woff2"); font-display: block; }`;
+  document.fonts.load('32px "' + family + '"').then(() => document.fonts.ready)
+    .then(() => {
+      const ctx = document.createElement("canvas").getContext("2d");
+      result.samples = SAMPLES.map((s) => ({ label: s.label, text: s.text, expect: s.expect, note: s.note, px: null }));
+      measure(ctx);
+    })
+    .catch((e) => { out.textContent = "font load failed: " + e.message; document.title = "ERROR"; });
+})();
+</script>
+</body>
+</html>

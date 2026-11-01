@@ -47,6 +47,23 @@ face; nothing else changes. There is no bold cut — CSS synthesizes it.
 stay exactly as they are. After 3.0.0 the `phLatin` slot ships no default file — register `BML-PH Sans`
 there too, or drop the slot and let `fallback` cover it.
 
+### Layout check (the half the font file cannot prove)
+
+`fonts-ink.test.mjs` proves the glyph's ink stays inside its cell. It cannot prove that the browser
+**advances** the widths a receiver advances — that was the M PLUS 1 Code bug, where U+3000 advanced
+0.5 em and three padded layers collided.
+
+`test/fixtures/layout-cell-probe.html` measures it. Serve the fonts directory over HTTP (a `file://`
+font URL is blocked by the browser's font loader), then open:
+
+```
+http://127.0.0.1:<port>/layout-cell-probe.html?font=BML-PH%20Sans&file=/BMLPH-Sans-Regular.woff2
+```
+
+It prints a table and JSON to `#out` and `document.title`. **It must await `document.fonts.load()`**
+before measuring — a probe that only waits for `document.fonts.ready` measures the fallback instead of
+the face (every face then reports the same numbers, which is the tell). Pass at 32 px: A/0/ñ 16,
+あ/日/U+3000 32, `AあA` 64, two U+3000 64.
 ### The pre-2.1.0 M+ stack
 
 The old registration still works and its files still ship (deprecated, removed in 3.0.0):
