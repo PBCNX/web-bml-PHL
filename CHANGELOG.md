@@ -3,6 +3,15 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.2.3 — the rest of the alphabet
+
+- **Latin Extended-A and Ext-B are complete** (98 + 185 characters): Ą ą Ć ć Č č Ď ď ƀ Ɓ Ƃ ƃ … now
+  come from Noto Sans and are centred in the 0.5 em cell like the rest of the Latin.
+- **The symbol and fraction block is closed**: ☀ ⛄ ⛅ ⚡ ⬅ ⭕ (Noto Sans Symbols / Symbols 2) and all the
+  vulgar fractions ⅐ ⅓ ⅔ ⅛ ↉ (Noto Sans), each centred in its 1 em cell.
+- Remaining gaps: **22 symbols** (⏫ ⏰ ✅ ✊ ✨ ❌ … the emoji-presentation set) and **14 archaic Greek**
+  (Ϣ ϣ Ϥ … Coptic-derived), plus the PUA slots that stay empty by design.
+- Sizes: Regular 1.06 MB, Bold 1.08 MB, Lite 0.56 MB, Lite Bold 0.57 MB woff2.
 ## 2.2.2 — one size per script
 
 - 2.2.1 scaled each Greek and Cyrillic glyph on its own to fill the 1 em cell, so the letters no longer
