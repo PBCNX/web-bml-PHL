@@ -25,8 +25,8 @@ Every change this fork makes, with the standard's clause and the measurement beh
 | C8 | key id allocated per service area | not engine |
 | C9 | Ginga removed | not engine |
 | C10 | `data_component_id` 0x0C / 0x0D | done |
-| C11 | `audio/X-arib-mpeg4-aac` | engine side done |
-| C12 | `video/X-arib-H264-high` | engine side done |
+| C11 | `audio/X-arib-mpeg4-aac` | engine side done; the PH band carries LATM, ADTS or MPEG-1 Layer II and may mislabel it, so the engine sniffs the payload and reports `audioCodec` |
+| C12 | `video/X-arib-H264-high` | engine side done; every measured PH mux is H.264 (playback in a host still unproven) |
 | C13 | monospaced face covering PH text | engine side done |
 | C14 | 139 EWBS area codes, coverage | done |
 | C15 | NVRAM areas at 4 KB | engine side done |
@@ -38,9 +38,12 @@ Every change this fork makes, with the standard's clause and the measurement beh
   **391 of 19,321** city pairs; it is symmetric now.
 - **Text**: of 111 valid UTF-8 `.btb` fields, 61 were garbled before P7; of 144 tables, none carries a
   C1 control.
-- **Fonts**: Kosugi has the right cell (0.5 em ASCII) but **3 of 64** Latin-1 letters; the M+ pair
-  covers **1,092 of 1,094** characters, the miss being `霾` — hence Kosugi as the last resort.
-  Symbols in M PLUS 1P are **0.62–1.02 em**, so symbol runs can move slightly; nothing else moves.
+- **Fonts**: the face is **BML-PH Sans** (Noto Sans Mono CJK JP derived, 2.2.4). Every non-PUA
+  character in the JIS map is present (**0 missing**); Latin-1, Ext-A and Ext-B complete, half-width
+  kana **63/63**, Cyrillic complete, Greek 121/135 (14 Coptic-derived archaic letters have no source).
+  Every half-width letter advances 0.5 em with its ink inside the cell; kana/kanji/`U+3000`/`℃` are
+  1 em; `࿖` (U+0FD6) comes from Noto Serif Tibetan. The old M+/Kosugi/PHLatin files are deprecated
+  and go in 3.0.0.
 - **Clock**: TV5 and `preview.ts` declare **+480**; `GMA-BML.ts` declares country PHL with **0**, read
   as +480; a Japanese stream with no descriptor stays unknown.
 - **Corpus**: 65 PH page files — 644,473 ASCII, 26 hiragana, 37 katakana, 14 CJK, no Latin-1 letters

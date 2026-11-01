@@ -1,6 +1,6 @@
 {
   "name": "web-bml-fonts",
-  "version": "2.0.0",
+  "version": "2.2.5",
   "license": "Apache-2.0 AND OFL-1.1",
   "files": [
     "*.woff2",

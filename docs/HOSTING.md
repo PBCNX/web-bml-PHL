@@ -39,6 +39,10 @@ loading (register one `@font-face` per chunk with the matching `unicodeRange`).
 
 The `.ttf` files are for Windows install (Settings > Fonts lists both families).
 
+**3.0.0 removes the old faces.** `MPLUS1Code*`, `MPLUS1P`, `PHLatin` and `Kosugi*` go; the option keys
+stay exactly as they are. After 3.0.0 the `phLatin` slot ships no default file — register `BML-PH Sans`
+there too, or drop the slot and let `fallback` cover it.
+
 ### The pre-2.1.0 M+ stack
 
 The old registration still works and its files still ship (deprecated, removed in 3.0.0):

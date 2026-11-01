@@ -170,5 +170,20 @@ export type PESMessage = {
     pts?: number;
     data: number[];
 };
-export type ResponseMessage = PMTMessage | EmergencyInfoMessage | ModuleDownloadedMessage | ModuleListUpdatedMessage | ProgramInfoMessage | CurrentTime | VideoStreamUrlMessage | ErrorMessage | ESEventUpdatedMessage | BITMessage | PCRMessage | PESMessage;
+/**
+ * The audio codec the engine sniffed from the first payload bytes of an audio component, once.
+ *
+ * PH broadcasters mislabel audio (measured 2026-11-01: ADTS under 0x11, non-ADTS under 0x0F), so this
+ * reports what the bytes are, not what the PMT says. A host can start its decoder from this and ignore
+ * the PMT's stream_type for audio.
+ */
+export type AudioCodecMessage = {
+    type: "audioCodec";
+    componentId: number;
+    pid: number;
+    /** The PMT's stream_type, kept so the host can log a label-vs-payload disagreement. */
+    streamType: number;
+    codec: "adts" | "latm" | "mp2" | "ac3";
+};
+export type ResponseMessage = PMTMessage | EmergencyInfoMessage | ModuleDownloadedMessage | ModuleListUpdatedMessage | ProgramInfoMessage | CurrentTime | VideoStreamUrlMessage | ErrorMessage | ESEventUpdatedMessage | BITMessage | PCRMessage | PESMessage | AudioCodecMessage;
 //# sourceMappingURL=messages.d.ts.map

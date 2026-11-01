@@ -3,6 +3,19 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.2.5 — the audio codec is what the bytes say
+
+- **New `audioCodec` message.** The engine sniffs the first payload bytes of each audio component and
+  reports `adts` / `latm` / `mp2` / `ac3` once per PID, with the PMT's `stream_type` beside it so a host
+  can log a label-vs-payload disagreement. Measured 2026-11-01 on the PH band: ALLTV (485.143) carries
+  **ADTS** under a `0x11`/LATM label, and two muxes carry non-ADTS payloads under `0x0F`/ADTS labels —
+  a host that trusts the label gets silence.
+- `sniffAudioCodec()` and `isAudioStreamType()` are exported from `web-bml/protocol/audio_codec`, so a
+  host that demuxes itself can use the same rule.
+- `docs/PATCHES.md`: C11/C12 now say what the band actually carries; the font paragraph describes
+  BML-PH Sans instead of the retired M+/Kosugi stack.
+- `docs/HOSTING.md`: after 3.0.0 the `phLatin` slot ships no default file.
+- `fonts/package.json` fixed (was still 2.0.0 and did not ship the `.ttf`s).
 ## 2.2.4 — the JIS set is complete
 
 - The last JIS character, **`࿖` (U+0FD6, Tibetan left-facing svasti sign)**, comes from Noto Serif

@@ -7,6 +7,7 @@ const si_text_decoder_js_1 = require("arib-mmt-tlv-ts/ts/si-text-decoder.js");
 const utils_js_1 = require("arib-mmt-tlv-ts/utils.js");
 const time_offset_1 = require("../client/time_offset");
 const pes_reader_js_1 = require("arib-mmt-tlv-ts/ts/pes-reader.js");
+const audio_codec_js_1 = require("../protocol/audio_codec.js");
 const fflate_1 = require("fflate");
 const entity_parser_1 = require("../client/entity_parser");
 var CompressionType;
@@ -113,6 +114,8 @@ function decodeTS(options) {
     let pcrPID = null;
     // 字幕/文字スーパーのPESのPID
     let privatePes = new Set();
+    // PIDs whose audio codec has already been sniffed and reported.
+    const sniffedAudio = new Set();
     let privatePesReaders = new Map();
     // ワンセグの場合0x1fc8-0x1fcfまでの固定PIDでPMTでワンセグのみを受信している場合PATは受信されない
     // ワンセグPMTを10回受信する間にPATが未受信であればワンセグだと判定
@@ -248,6 +251,27 @@ function decodeTS(options) {
     reader.addEventListener("packet", ({ packet }) => {
         if (packet.transportErrorIndicator) {
             return;
+        }
+        // Audio labels lie on the PH band, so report the codec the bytes actually carry, once per PID.
+        const component = pidToComponent?.get(packet.pid);
+        if (component != null && (0, audio_codec_js_1.isAudioStreamType)(component.streamType) && !sniffedAudio.has(packet.pid)) {
+            const afc = packet.adaptationFieldControl;
+            const offset = 4 + ((afc & 2) ? 1 + packet.data[4] : 0);
+            const payload = packet.data.subarray(offset);
+            if (payload.length >= 9 && payload[0] === 0 && payload[1] === 0 && payload[2] === 1) {
+                const headerLength = 9 + payload[8];
+                const codec = (0, audio_codec_js_1.sniffAudioCodec)(payload.subarray(headerLength, headerLength + 16));
+                if (codec != null) {
+                    sniffedAudio.add(packet.pid);
+                    send({
+                        type: "audioCodec",
+                        componentId: component.componentId,
+                        pid: component.pid,
+                        streamType: component.streamType,
+                        codec,
+                    });
+                }
+            }
         }
         if (privatePes.has(packet.pid)) {
             const reader = privatePesReaders.get(packet.pid) ?? new pes_reader_js_1.PESReader();
