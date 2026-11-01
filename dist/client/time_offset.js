@@ -12,6 +12,13 @@
  * The TOT's JST field is still a BCD JST time; `arib-mmt-tlv-ts`'s `mjdBCDToUnixEpoch` turns it into
  * UTC milliseconds. This module reads the offset descriptor and converts a broadcast wall-clock time
  * to UTC, so the receiver follows the stream instead of assuming Japan.
+ *
+ * 2026-11-02, per the PH guide's settled reading (BML-CLK-02, BML-CLK-09): the TOT field is the
+ * **national time** (PH UTC+8) and `=0` fixes region, `local_time_offset` and `next_time_offset` at 0,
+ * so a standard receiver shows the field as sent. The box does not: the ABS-CBN TVplus adds +8 to
+ * whatever the field holds (hardware test 2026-10-06), and GMA puts UTC in the field. Both behaviours
+ * are real, so the engine keeps reporting the field and the descriptor verbatim and the host picks a
+ * policy (`docs/HOSTING.md`).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PH_OFFSET_MINUTES = exports.JST_OFFSET_MINUTES = void 0;
