@@ -9,7 +9,7 @@ and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
   status is not 0 (`unlockModuleOnMemoryEx(mr); lockModuleOnMemoryEx(mr);`); `/50/1002` is not in that
   DII, so the engine answered `-2` every time, the page re-locked, and `processEventQueue` never left —
   timers stopped and the page froze (BMLPLAYER, ABS 3201, 2026-11-02; snapshot stuck at 9.0 s with
-  `/50/1002` absent from all five saved ABS folders).
+  `/50/1002` absent from all five saved ABS folders — a dump artifact: the complete Panay 2019 extraction carries it).
 - Identical `ModuleLocked` events are now capped at 16 per module+status per second, with one
   `ModuleLocked burst` error; the cap resets on the next second. A page mistake no longer stops the
   receiver.
