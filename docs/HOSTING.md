@@ -39,6 +39,10 @@ loading (register one `@font-face` per chunk with the matching `unicodeRange`).
 
 The `.ttf` files are for Windows install (Settings > Fonts lists both families).
 
+**2.3.0 adds the alternative look:** `BMLPH-RoundGothic-Regular.woff2` (family `BML-PH RoundGothic`,
+Kosugi-based, same cell and coverage). Point the same keys at it when a host wants the classic maru
+face; nothing else changes. There is no bold cut — CSS synthesizes it.
+
 **3.0.0 removes the old faces.** `MPLUS1Code*`, `MPLUS1P`, `PHLatin` and `Kosugi*` go; the option keys
 stay exactly as they are. After 3.0.0 the `phLatin` slot ships no default file — register `BML-PH Sans`
 there too, or drop the slot and let `fallback` cover it.

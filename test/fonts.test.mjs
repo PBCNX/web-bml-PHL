@@ -138,7 +138,8 @@ const faces = readdirSync(fontDir).filter((name) => name.endsWith(".woff2"));
 // fallbacks only — M PLUS 1p is proportional Latin by design, reached only for ranges the primary
 // lacks — so they are checked separately below.
 const bmlFaces = faces.filter((name) => name.startsWith("Kosugi") || name.startsWith("MPLUS1Code") ||
-    (name.startsWith("BMLPH-Sans") && !name.startsWith("BMLPH-Sans-")));
+    (name.startsWith("BMLPH-Sans") && !name.startsWith("BMLPH-Sans-")) ||
+    name.startsWith("BMLPH-RoundGothic"));
 
 test("every BML face is monospaced for ASCII", () => {
     assert.ok(bmlFaces.length > 0);

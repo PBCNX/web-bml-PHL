@@ -93,11 +93,11 @@ function metrics(file) {
     return { unitsPerEm, advance, bounds };
 }
 
-const faces = ["BMLPH-Sans-Regular.ttf", "BMLPH-SansLite-Regular.ttf", "BMLPH-Sans-Bold.ttf", "BMLPH-SansLite-Bold.ttf"]
+const faces = ["BMLPH-Sans-Regular.ttf", "BMLPH-SansLite-Regular.ttf", "BMLPH-Sans-Bold.ttf", "BMLPH-SansLite-Bold.ttf", "BMLPH-RoundGothic-Regular.ttf"]
     .filter((name) => existsSync(join(fontDir, name)));
 
 test("every accented Latin letter sits inside its 0.5 em cell", () => {
-    assert.ok(faces.length === 4, "the four BML-PH Sans faces must ship");
+    assert.ok(faces.length >= 4, "the BML-PH faces must ship");
     for (const face of faces) {
         const { advance, bounds } = metrics(join(fontDir, face));
         for (let code = 0xa0; code <= 0x24f; code++) {

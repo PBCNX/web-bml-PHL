@@ -3,6 +3,16 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.3.0 — BML-PH RoundGothic
+
+- **New face:** `BML-PH RoundGothic`, the Kosugi/maru look with the Sans face's cell and coverage:
+  1.34 MB woff2, JIS **0 non-PUA missing**, Latin-1/Ext-A/B complete, half-width kana 63/63, Greek
+  121/135, Cyrillic complete, symbols and fractions, `₱`, `࿖`.
+- Kosugi Maru is the base (Apache-2.0); everything Kosugi lacks comes from the Noto families. Accents
+  are fitted to their base letter like the Sans face, Greek/Cyrillic keep one size per script, and the
+  ink test covers the new face too.
+- No bold cut (Kosugi has none): CSS synthesizes it.
+- The old M+/Kosugi/PHLatin files stay until 3.0.0; this is the face hosts can adopt early.
 ## 2.2.6 — sniff past a mid-frame PES start
 
 - OpenDTV-MOD's correction: on 479.143/497.143 the first PES payload begins **mid-frame** (`8c 85 98

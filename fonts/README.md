@@ -54,3 +54,20 @@ Cell rules: Latin and half-width kana **0.5 em** (advance 500, ink centred insid
 matched to their base letter); Greek and Cyrillic **1.0 em** (advance 1000, ink fitted and centred);
 kana/kanji/`U+3000`/`℃` **1.0 em**. `₱` (U+20B1) is 0.5 em. Greek has 23 archaic codepoints no
 source ships; Cyrillic and half-width kana are complete.
+
+## BML-PH RoundGothic (2.3.0)
+
+The Kosugi/maru look, with the same cell and the same coverage contract. Base: **Kosugi Maru**
+(Apache-2.0), upem scaled to 1000; the characters Kosugi lacks come from Huninn, Noto Sans, Noto Sans
+Mono CJK JP, Noto Sans Symbols/2, Noto Sans Math and Noto Serif Tibetan (for `࿖`).
+
+| family | file | size | covers |
+|---|---|---|---|
+| `BML-PH RoundGothic` | `BMLPH-RoundGothic-Regular.woff2` (or `.ttf`) | 1.34 MB / 2.9 MB | JIS 1+2, Latin, kana, Greek/Cyrillic, symbols |
+
+Cell rules are the Sans rules: Latin and half-width kana 0.5 em with ink inside the cell and accents
+matched to their base letter, Greek/Cyrillic 1 em one size per script, kana/kanji/U+3000/℃ 1 em,
+`₱` 0.5 em. JIS: **0 non-PUA characters missing**. There is no bold cut (Kosugi has none); let CSS
+synthesize it.
+
+Register it under the same option keys as Sans — it is a look, not a different API.
