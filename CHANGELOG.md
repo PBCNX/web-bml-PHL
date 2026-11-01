@@ -3,6 +3,13 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.4.2 — the stream's identity in `programInfo`
+
+- `programInfo.serviceName`: the SDT's own name for the selected service, decoded (2.4.2). A host that
+  plays a file through a UDP pseudo-tuner has `ChannelInfo.NetworkID = 0` and an empty service list, so
+  identity has to come from the stream — `networkId` was already there, the name was not.
+- Measured on the BS-TBS capture: `networkId 4, tsid 16401, serviceId 161, serviceName "ＢＳ－ＴＢＳ"`.
+- HOSTING gains a "Stream identity" section: read `programInfo`, not the user's configured region.
 ## 2.4.1 — `clickAt` inside the closed shadow root
 
 BMLPLAYER tested 2.4.0's `clickAt` on TV5's Channel Guide and it did nothing: `document.elementFromPoint`

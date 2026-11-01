@@ -104,6 +104,7 @@ function decodeTS(options) {
         durationSeconds: null,
         indefiniteDuration: null,
         networkId: null,
+        serviceName: null,
     };
     // SDTのEIT_present_following_flag
     // key: service_id
@@ -415,7 +416,12 @@ function decodeTS(options) {
             for (const service of section.services) {
                 eitPresentFollowingFlag.set(service.serviceId, service.eitPresentFollowingFlag);
                 for (const descriptor of service.descriptors) {
-                    if (descriptor.tag === "service") { // 0x48 サービス記述子
+                    if (descriptor.tag === "service" && service.serviceId === serviceId) { // 0x48 サービス記述子
+                        // 2.4.2: the identity a host needs when it plays a file through a UDP driver.
+                        const serviceDescriptor = descriptor;
+                        if (serviceDescriptor.serviceName != null) {
+                            updateProgramInfo({ serviceName: (0, si_text_decoder_js_1.decodeSIText)(serviceDescriptor.serviceName) });
+                        }
                     }
                 }
             }

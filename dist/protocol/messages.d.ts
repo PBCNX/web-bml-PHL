@@ -119,6 +119,12 @@ export type ProgramInfoMessage = {
     durationSeconds: number | null;
     indefiniteDuration: boolean | null;
     networkId: number | null;
+    /**
+     * 2.4.2: the service's own name from the SDT, decoded — the identity a host needs when it plays a
+     * file through a UDP driver and has no real tuning session (TVTest, 2026-11-02). Null until the
+     * SDT for the selected service has been seen.
+     */
+    serviceName: string | null;
 };
 export type CurrentTime = {
     type: "currentTime";

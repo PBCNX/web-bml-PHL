@@ -73,6 +73,26 @@ It prints a table and JSON to `#out` and `document.title`. **It must await `docu
 before measuring — a probe that only waits for `document.fonts.ready` measures the fallback instead of
 the face (every face then reports the same numbers, which is the tell). Pass at 32 px: A/0/ñ 16,
 あ/日/U+3000 32, `AあA` 64, two U+3000 64.
+### Stream identity (2.4.2)
+
+`programInfo` is the identity a host should trust:
+
+```js
+{ type: "programInfo", networkId, originalNetworkId, transportStreamId, serviceId,
+  serviceName, eventName, startTimeUnixMillis, durationSeconds, indefiniteDuration }
+```
+
+- `networkId` decides the region — Japanese satellite identities (`0x0004`, `0x0006/7`, `0x000A`,
+  `0x000B/C`) and the terrestrial allocation (`0x7880–0x7FE8`); the PH muxes are outside both.
+- `serviceName` (new) is the SDT's own name for the selected service, decoded; null until its SDT is
+  seen. It is the cross-check for `networkId` and what a host displays.
+- It is sent again whenever any field changes, so a tune or a file with a different service is not
+  missed.
+
+A host that plays a **file through a pseudo-tuner** (a UDP driver) has no real `ChannelInfo` — its
+network id is 0 and its service list is not populated. Read `programInfo` instead of guessing from the
+user's configured region: that is the difference between a Japanese capture rendered in the Philippine
+face with its clock nine hours off, and one rendered as the stream says it is.
 ### Pointer input (2.4.0)
 
 A host with a mouse or a touch pointer should call `clickAt(x, y)` rather than dispatching DOM clicks
