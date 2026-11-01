@@ -33,6 +33,10 @@ on:
 
 It does not run the tests: run `npm test` yourself in the same step.
 
+**A FAIL is exit code 1.** A shell chain written with `;` or newlines keeps going and will publish
+anyway — the first run of this gate did exactly that, and the public commit had to be rewritten. Use
+`&&`, or check the exit status explicitly, between the check and the push.
+
 ## Building the public commit
 
 The public history is linear and its own; the working clone's commits are the record of *why*. So the
