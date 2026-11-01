@@ -216,6 +216,17 @@ class BMLBrowser {
      * Plain JSON: numbers that would be NaN are null, so the result survives `JSON.stringify`
      * unchanged and can go over a pipe to another process.
      */
+    /**
+     * 2.4.0: the pointer as the remote.
+     *
+     * `x`/`y` are page CSS pixels (a host maps its pointer into the page, including any scaling). The
+     * engine hit-tests, focuses the element under the point and dispatches the same synchronous `click`
+     * the Enter key does, so `onfocus` precedes `onclick` as it does on the box. Returns false when
+     * nothing focusable is under the point.
+     */
+    clickAt(x, y) {
+        return this.content.clickAt(x, y);
+    }
     getDiagnostics() {
         const diagnostics = this.resources.diagnostics;
         const page = this.content.inspect();

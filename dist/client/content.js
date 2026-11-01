@@ -613,6 +613,34 @@ class Content {
         }
         this.fonts.length = 0;
     }
+    /**
+     * 2.4.0: the pointer as the remote. Hit-tests the live page at these coordinates (CSS px), walks up
+     * to the nearest element the profile would focus, then does exactly what Enter does: `focusHelper`
+     * and the same synchronous `click` event, so a page sees `onfocus` before `onclick` as it does from
+     * the remote.
+     *
+     * A host with a pointer (BMLPLAYER's Mouse mode) should call this instead of reaching into the
+     * navigation helpers, which are private for a reason: they describe key order, not hit-testing.
+     *
+     * Returns false when nothing focusable is under the point - the host can then fall back to its own
+     * chrome rather than pretending the page took the click.
+     */
+    clickAt(x, y) {
+        const hit = document.elementFromPoint(x, y);
+        if (hit == null) {
+            return false;
+        }
+        let target = hit;
+        while (target != null && !this.isFocusable(target)) {
+            target = target.parentElement;
+        }
+        if (target == null) {
+            return false;
+        }
+        this.focusHelper(target);
+        this.eventQueue.queueSyncEvent({ type: "click", target });
+        return true;
+    }
     _context = {};
     get context() {
         return this._context;

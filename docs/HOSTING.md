@@ -64,6 +64,19 @@ It prints a table and JSON to `#out` and `document.title`. **It must await `docu
 before measuring — a probe that only waits for `document.fonts.ready` measures the fallback instead of
 the face (every face then reports the same numbers, which is the tell). Pass at 32 px: A/0/ñ 16,
 あ/日/U+3000 32, `AあA` 64, two U+3000 64.
+### Pointer input (2.4.0)
+
+A host with a mouse or a touch pointer should call `clickAt(x, y)` rather than dispatching DOM clicks
+or reaching into the navigation helpers:
+
+```js
+browser.clickAt(pageX, pageY);   // page CSS pixels; false when nothing focusable is under the point
+```
+
+It hit-tests, focuses the element under the point and queues the same synchronous `click` the Enter key
+does, so `onfocus` precedes `onclick` exactly as it does from the remote. A `false` return means the
+page did not take the click (empty area, hidden element) — fall back to the host's own chrome instead
+of pretending otherwise.
 ### The pre-2.1.0 M+ stack
 
 The old registration still works and its files still ship (deprecated, removed in 3.0.0):

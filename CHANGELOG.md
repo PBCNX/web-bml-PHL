@@ -3,6 +3,15 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.4.0 — the pointer as the remote
+
+- **`clickAt(x, y)`** on `BMLBrowser` (and on the content layer): hit-tests the page at page CSS pixels,
+  focuses the nearest element the profile would focus, and queues the same synchronous `click` the
+  Enter key does — so `onfocus` precedes `onclick` as on the box. Returns false when nothing focusable
+  is under the point.
+- BMLPLAYER's Mouse mode was calling the private `content.findNavIndex` / `isFocusable` / `focusHelper`;
+  those stay private (they describe key order, not hit-testing) and the public call replaces them.
+- `docs/HOSTING.md` gains a "Pointer input" section.
 ## 2.3.4 — the audio codec in the diagnostics snapshot
 
 - `getDiagnostics()` now carries `audioCodecs`: one record per component with `codec`, `expectedCodec`
