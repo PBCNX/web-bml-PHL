@@ -242,7 +242,11 @@ class NVRAM {
         };
     }
     findNvramArea(url, broadcasterInfo) {
-        const match = url.match(/^nvrams?:\/\/((?<affiliationId>[0-9a-fA-F]{2});)?((?<originalNetworkId>[0-9a-fA-F]{4});)?(?<prefix>.+)\/(?<block>\d+)$/);
+        // Real pages write the affiliation as a path segment as well as with the standard separator:
+        // BS-TBS emits `nvram:///03/group/30` (03 = TBS affiliation) where the grammar says
+        // `nvram://03;group/30`. Normalise the path form before parsing, or the area is "unknown".
+        const normalized = url.replace(/^(nvrams?:\/\/)\/([0-9a-fA-F]{2})\//, "$1$2;");
+        const match = normalized.match(/^nvrams?:\/\/((?<affiliationId>[0-9a-fA-F]{2});)?((?<originalNetworkId>[0-9a-fA-F]{4});)?(?<prefix>.+)\/(?<block>\d+)$/);
         if (!match?.groups) {
             return null;
         }
@@ -256,11 +260,16 @@ class NVRAM {
             originalNetworkId = null;
         }
         const prefix = match?.groups.prefix;
-        const block = parseInt(match?.groups.block) ?? -1;
+        const block = Number.parseInt(match?.groups.block ?? "", 10);
+        if (!Number.isFinite(block)) {
+            return null;
+        }
         for (const area of nvramAreas) {
-            // A prefix can carry one row per broadcast type; without this comparison the first
-            // (GR) row answered for every receiver, denying BS and CS their own areas.
-            if (area.broadcastType === this.broadcastType && prefix === area.prefix && area.isSecure === isSecure) {
+            // The row that governs this receiver is the one whose permissions name it: `local_web`
+            // carries one row per broadcast type, while `group` carries one row that grants GR and BS
+            // ("rw" each) and denies CS. Comparing area.broadcastType instead hid `group` from BS -
+            // BS-TBS reads nvram:///03/group/30 and got "no such area".
+            if (prefix === area.prefix && area.isSecure === isSecure && area.permissions[this.broadcastType] !== "") {
                 if (area.startBlock <= block && area.lastBlock >= block) {
                     return [
                         { block, affiliationId, originalNetworkId, broadcasterId: broadcasterInfo.broadcasterId, broadcastType: broadcasterInfo.broadcastType },

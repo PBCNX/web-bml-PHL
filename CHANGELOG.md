@@ -3,6 +3,17 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.3.2 — the NVRAM area a BS page actually asks for
+
+- **Two NVRAM bugs found on BS-TBS (console: `readNVRAM: findNvramArea failed
+  nvram:///03/group/30`):**
+  - the page writes the affiliation as a path segment (`nvram:///03/group/30`), not the grammar's
+    `nvram://03;group/30`; the parser now normalises the path form, so both name the same area.
+  - the area table was matched by its own `broadcastType` instead of the receiver's permissions, so
+    `group` (one row that grants GR and BS "rw" and denies CS) was invisible to BS receivers, and
+    `tr_common` (BS read-only) was reported as "unknown". Matching is now by the receiver's permission
+    row, which is what the table was always meant to say.
+- Tests cover both forms and the `tr_common` read-only case.
 ## 2.3.1 — the label disagreement, in the message
 
 - `audioCodec` now also carries `expectedCodec` (what the PMT's `stream_type` claims) and
