@@ -1,0 +1,170 @@
+import {
+    Completion,
+    Context,
+    createGlobalContext,
+    InterpreterObject,
+    Interruption,
+    parse,
+    Program,
+    run,
+} from "../../es2";
+import { Interpreter } from "./interpreter";
+import { Content } from "../content";
+import { Resources } from "../resource";
+import { BrowserAPI } from "../browser";
+import { EPG } from "../contracts";
+import { define, wrap } from "./es2_dom_binding";
+import { defineBuiltinBinding, defineBrowserBinding, defineBinaryTableBinding } from "./es2_binding";
+import { type Logger } from "../util/logger";
+import { LAUNCH_DOCUMENT_CALLED } from "./signals";
+
+export class ES2Interpreter implements Interpreter {
+    context: Context = null!; // lazyinit
+    prototypes: Map<any, InterpreterObject> = new Map();
+    map: WeakMap<any, InterpreterObject> = new WeakMap();
+
+    public reset() {
+        const context = createGlobalContext();
+        this.context = context;
+        this.prototypes = new Map();
+        this.map = new WeakMap();
+        const prototypes = this.prototypes;
+        const map = this.map;
+        // DOMのバインディングを定義
+        define(this.context, prototypes, map);
+        for (const p of prototypes.values()) {
+            p.internalProperties.class = "hostobject";
+        }
+        context.realm.globalObject.properties.set("document", {
+            readOnly: false,
+            dontEnum: false,
+            dontDelete: true,
+            value: wrap(prototypes, map, this.content.bmlDocument),
+        });
+        const resources = this.resources;
+        defineBuiltinBinding(context, {
+            get profile() {
+                return resources.profile;
+            },
+            get currentTimeUnixMillis() {
+                return resources.currentTimeUnixMillis;
+            },
+        });
+        defineBrowserBinding(context, this.resources, this.browserAPI, this.content, this.epg, this.browserLogger);
+        defineBinaryTableBinding(context, this.resources, this.browserLogger);
+        this.resetStack();
+    }
+
+    private _isExecuting: boolean;
+    // lazyinit
+    private browserAPI: BrowserAPI = null!;
+    private resources: Resources = null!;
+    private content: Content = null!;
+    private epg: EPG = null!;
+    private readonly logger: Logger;
+    private readonly browserLogger: Logger;
+    public constructor(logger: Logger, browserLogger: Logger) {
+        this._isExecuting = false;
+        this.logger = logger;
+        this.browserLogger = browserLogger;
+    }
+
+    public setupEnvironment(browserAPI: BrowserAPI, resources: Resources, content: Content, epg: EPG): void {
+        this.browserAPI = browserAPI;
+        this._isExecuting = false;
+        this.resources = resources;
+        this.content = content;
+        this.epg = epg;
+        this.reset();
+    }
+
+    public addScript(script: string, src?: string): Promise<boolean> {
+        let program: Program;
+        try {
+            program = parse(script, { name: src ?? "anonymous", source: script });
+        } catch (e) {
+            this.logger.error(`failed to parse script`, src, e);
+            // P1: 構文エラーはページを止めるが、コンソールにしか出なかった
+            this.resources?.diagnostics.scriptError("parse", src, e);
+            return Promise.resolve(false);
+        }
+        this.runningScript = src;
+        return this.runScript(program);
+    }
+
+    /** P1: どの<script>を実行中か (エラー記録の名前付けにだけ使う) */
+    private runningScript?: string;
+
+    private exeNum: number = 0;
+
+    async runScript(program: Program): Promise<boolean> {
+        if (this.isExecuting) {
+            throw new Error("interpreter is already executing");
+        }
+        const prevContext = this.content.context;
+        const context = this.context;
+        let exit = false;
+        const exeNum = this.exeNum++;
+        this.logger.debug(`runScript()`, exeNum, prevContext, this.content.context);
+        try {
+            this._isExecuting = true;
+            let executionStartTime = performance.now();
+            // 50ms実行し続けると一旦中断
+            const shouldInterrupt = () => {
+                return performance.now() - executionStartTime > 50;
+            };
+            const iter = run(program, { ...context, shouldInterrupt }) as Generator<Promise<any> | Interruption | typeof LAUNCH_DOCUMENT_CALLED, Completion>;
+            let lastResult: any = undefined;
+            while (true) {
+                executionStartTime = performance.now();
+                const { value, done } = iter.next(lastResult);
+                lastResult = undefined;
+                if (value === LAUNCH_DOCUMENT_CALLED) {
+                    this.logger.debug(`browser.launchDocument called.`);
+                    exit = true;
+                    break;
+                } else if (typeof value === "object" && value != null && "type" in value && value.type === "interruption") {
+                    // 中断したら50ms待って再開
+                    this.logger.warn(`script execution timeout`);
+                    await new Promise((resolve) => {
+                        setTimeout(() => {
+                            resolve(true);
+                        }, 50);
+                    });
+                } else if (value instanceof Promise) {
+                    lastResult = await value;
+                }
+                if (done) {
+                    break;
+                }
+            }
+            this.logger.debug(`RETURN RUN SCRIPT`, exeNum, prevContext, this.content.context);
+        } catch (e) {
+            this.logger.error(`unhandled error`, exeNum, prevContext, this.content.context, e);
+            // P1: 実行時例外。どのスクリプトが投げたかは名前で分かる範囲で残す
+            this.resources?.diagnostics.scriptError("run", this.runningScript, e);
+        }
+        // A navigation replaced the document while the script ran: the caller must stop as well.
+        if (this.content.context !== prevContext) {
+            this.logger.error(`context switched`, this.content.context, prevContext);
+            exit = true;
+        }
+        this.logger.debug(`leave runScript()`, exeNum, exit, prevContext, this.content.context);
+        if (!exit) {
+            this._isExecuting = false;
+        }
+        return exit;
+    }
+
+    public get isExecuting() {
+        return this._isExecuting;
+    }
+
+    public async runEventHandler(funcName: string): Promise<boolean> {
+        return await this.addScript(`${funcName}();`, `eventHandler:${funcName}`);
+    }
+
+    public resetStack(): void {
+        this._isExecuting = false;
+    }
+}

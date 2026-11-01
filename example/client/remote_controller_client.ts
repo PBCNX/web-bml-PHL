@@ -1,0 +1,111 @@
+import { type AribKeyCode, keyCodeToAribKey, BMLBrowser, type Indicator } from "web-bml";
+import { VideoPlayer } from "./player/video_player";
+import { RemoteControllerMessage } from "./remote_controller";
+
+export class RemoteControl implements Indicator {
+    public browser?: BMLBrowser;
+    public player?: VideoPlayer;
+    element: HTMLElement;
+    receivingStatusElement: HTMLElement;
+    networkingStatusElement?: HTMLElement;
+    constructor(element: HTMLElement, receivingStatusElement: HTMLElement, networkingStatusElement?: HTMLElement, browser?: BMLBrowser, player?: VideoPlayer) {
+        this.browser = browser;
+        this.player = player;
+        this.element = element;
+        this.receivingStatusElement = receivingStatusElement;
+        this.networkingStatusElement = networkingStatusElement;
+
+        this.element.querySelectorAll("button").forEach(x => {
+            x.addEventListener("click", () => {
+                if (x.id === "unmute" || x.id === "mute" || x.id === "play" || x.id === "pause" || x.id === "cc" || x.id === "disable-cc" || x.id === "zoom-100" || x.id === "zoom-150" || x.id === "zoom-200") {
+                    this.process({ type: x.id });
+                } else {
+                    this.process({ type: "button", keyCode: Number.parseInt(x.id.split("key")[1]) });
+                }
+            });
+        });
+    }
+    private process(remoteController: RemoteControllerMessage) {
+        if (remoteController != null) {
+            if (remoteController.type === "unmute") {
+                this.player?.unmute();
+            } else if (remoteController.type === "mute") {
+                this.player?.mute();
+            } else if (remoteController.type === "pause") {
+                this.player?.pause();
+            } else if (remoteController.type === "play") {
+                this.player?.play();
+            } else if (remoteController.type === "cc") {
+                this.player?.showCC();
+            } else if (remoteController.type === "disable-cc") {
+                this.player?.hideCC();
+            } else if (remoteController.type === "zoom-100") {
+                document.documentElement.style.transform = "";
+                this.player?.scale(1);
+            } else if (remoteController.type === "zoom-150") {
+                document.documentElement.style.transform = "scale(150%)";
+                document.documentElement.style.transformOrigin = "left top";
+                this.player?.scale(1.5);
+            } else if (remoteController.type === "zoom-200") {
+                document.documentElement.style.transform = "scale(200%)";
+                document.documentElement.style.transformOrigin = "left top";
+                this.player?.scale(2);
+            } else if (remoteController.type === "button") {
+                this.browser?.content.processKeyDown(remoteController.keyCode as AribKeyCode);
+                this.browser?.content.processKeyUp(remoteController.keyCode as AribKeyCode);
+            } else if (remoteController.type === "keydown") {
+                const k = keyCodeToAribKey(remoteController.key);
+                if (k != -1) {
+                    this.browser?.content.processKeyDown(k);
+                }
+            } else if (remoteController.type === "keyup") {
+                const k = keyCodeToAribKey(remoteController.key);
+                if (k != -1) {
+                    this.browser?.content.processKeyUp(k);
+                }
+            }
+        }
+    }
+    url = "";
+    receiving = false;
+    networkingPost = false;
+    eventName: string | null = "";
+    loading = false;
+    private update() {
+        const indicator = this.element.querySelector(".remote-control-indicator");
+        if (indicator != null) {
+            indicator.textContent = this.url + (this.loading ? "を読み込み中..." : "") + "\n" + (this.eventName ?? "番組名未取得");
+        }
+        if (this.receiving) {
+            this.receivingStatusElement.style.display = "";
+        } else {
+            this.receivingStatusElement.style.display = "none";
+        }
+        if (this.networkingStatusElement != null) {
+            if (this.networkingPost) {
+                this.networkingStatusElement.style.display = "";
+            } else {
+                this.networkingStatusElement.style.display = "none";
+            }
+        }
+    }
+    public setUrl(name: string, loading: boolean): void {
+        this.url = name;
+        this.loading = loading;
+        this.update();
+    }
+    public setReceivingStatus(receiving: boolean): void {
+        this.receiving = receiving;
+        this.update();
+    }
+    public setNetworkingPostStatus(post: boolean): void {
+        this.networkingPost = post;
+        this.update();
+    }
+    public setNetworkingGetStatus(get: boolean): void {
+    }
+    public setEventName(eventName: string | null): void {
+        this.eventName = eventName;
+        this.update();
+    }
+}
