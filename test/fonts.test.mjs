@@ -241,3 +241,11 @@ test("BML-PH Sans 2.2.0 carries the script set in the right cells", () => {
         assert.equal(advance(0x3000), unitsPerEm, `${face}: U+3000 must be 1 em`);
     }
 });
+
+// 2.2.4 - the last JIS character: the Tibetan svasti sign no CJK face carries.
+test("BML-PH Sans covers the Tibetan JIS character", () => {
+    for (const face of ["BMLPH-Sans-Regular.woff2", "BMLPH-SansLite-Regular.woff2"]) {
+        const { unitsPerEm, advance } = fontMetrics(join(fontDir, face));
+        assert.equal(advance(0x0fd6), unitsPerEm, `${face}: U+0FD6 must be 1 em`);
+    }
+});

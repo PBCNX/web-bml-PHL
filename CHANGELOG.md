@@ -3,6 +3,13 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.2.4 — the JIS set is complete
+
+- The last JIS character, **`࿖` (U+0FD6, Tibetan left-facing svasti sign)**, comes from Noto Serif
+  Tibetan and is centred in its 1 em cell. Every non-PUA character in the engine's JIS map is now in
+  the face: **0 missing**, 343 PUA slots left empty by design.
+- Registering the face is still one file; the chunks already isolate the symbols range, so hosts that
+  lazy-load never fetch this glyph until a page asks for it.
 ## 2.2.3 — the rest of the alphabet
 
 - **Latin Extended-A and Ext-B are complete** (98 + 185 characters): Ą ą Ć ć Č č Ď ď ƀ Ɓ Ƃ ƃ … now
