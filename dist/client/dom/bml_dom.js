@@ -441,6 +441,14 @@ var BML;
                     y += lineHeight;
                     continue;
                 }
+                // 2.4.6: C0 and C1 are control codes, not glyphs — they take no cell. The PH profile
+                // carries C1 as UTF-8 C2 80-9F (Annex 8-1 §7.2.3, Annex 8-2 §5.2/§5.6), so after the
+                // UTF-8 decode they arrive as U+0080-U+009F; laid out as characters they became
+                // half-width invisible spans and shifted everything after them.
+                const codePoint = c.charCodeAt(0);
+                if (codePoint < 0x20 || (codePoint >= 0x80 && codePoint <= 0x9f)) {
+                    continue;
+                }
                 const jis = unicode_to_jis_map_1.unicodeToJISMap[c.charCodeAt(0)];
                 const char = document.createElement("span");
                 char.textContent = c;

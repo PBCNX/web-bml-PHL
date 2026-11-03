@@ -3,6 +3,13 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.4.6 — control codes take no cell
+
+- C0 and C1 code points are skipped by the text layout instead of being laid out as half-width spans.
+  The PH profile carries C1 as UTF-8 `C2 80`–`C2 9F` (Annex 8-1 §7.2.3, Annex 8-2 §5.2/§5.6), so after
+  the UTF-8 decode they arrive as U+0080–U+009F; treated as characters they inserted invisible
+  half-width cells and shifted everything after them. Full ARIB control semantics are still not
+  implemented — only the non-spacing rule.
 ## 2.4.5 — a failing lock cannot storm the event queue
 
 - One `ModuleLocked` failure must not become an endless stream. ABS's `onLkDMdl` re-locks whenever the
