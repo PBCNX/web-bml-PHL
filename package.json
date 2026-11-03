@@ -1,0 +1,70 @@
+{
+  "name": "web-bml",
+  "description": "BML data-broadcasting engine for the Philippine ISDB-T profile (provenance web-bml-phl-pbcnx)",
+  "version": "3.0.0",
+  "main": "./dist/client/bml_browser.js",
+  "author": "The web-bml-PHL Authors (PBCNX)",
+  "license": "MIT",
+  "scripts": {
+    "hooks": "node tools/install-hooks.mjs",
+    "check": "node tools/publish-check.mjs",
+    "build": "tsc",
+    "build:iife": "node tools/build-iife.mjs",
+    "watch": "tsc -w",
+    "pretest": "tsc",
+    "test": "node --test",
+    "coverage": "c8 --reporter=lcov --reporter=json-summary --reporter=text-summary node --test"
+  },
+  "files": [
+    "client",
+    "protocol",
+    "server",
+    "es2",
+    "dist",
+    "vendor",
+    "fonts/*.woff2",
+    "fonts/*.txt",
+    "fonts/README.md",
+    "fonts/package.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/client/bml_browser.d.ts",
+      "default": "./dist/client/bml_browser.js"
+    },
+    "./entity-parser": {
+      "types": "./dist/client/entity_parser.d.ts",
+      "default": "./dist/client/entity_parser.js"
+    },
+    "./ts": {
+      "types": "./dist/server/decode_ts.d.ts",
+      "default": "./dist/server/decode_ts.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/messages.d.ts",
+      "default": "./dist/protocol/messages.js"
+    },
+    "./protocol/audio_codec": {
+      "types": "./dist/protocol/audio_codec.d.ts",
+      "default": "./dist/protocol/audio_codec.js"
+    }
+  },
+  "dependencies": {
+    "arib-mmt-tlv-ts": "^2.0.2",
+    "crc-32": "^1.2.2",
+    "css": "file:vendor/css",
+    "fast-xml-parser": "^4.0.11",
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "@types/css": "^0.0.38",
+    "c8": "^12.0.0",
+    "esbuild": "^0.25.0",
+    "happy-dom": "^21.0.4",
+    "typescript": "^6.0.3"
+  },
+  "workspaces": [
+    "example",
+    "fonts"
+  ]
+}
