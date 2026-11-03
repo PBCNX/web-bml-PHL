@@ -1,0 +1,196 @@
+# Hosting the engine
+
+What a host wires up. The engine is a library: `new BMLBrowser(options)`, plus a few options.
+
+## Options
+
+| option | what it does |
+|---|---|
+| `textCoding` | `"auto"` (default, PH reading) or `"arib"` (strict Japanese reading) |
+| `timeZoneOffsetMinutes` | the clock offset when the stream carries none; PH is `480` |
+| `fonts` | the faces to register (below) |
+| `nvramAreaBytes` | `4096` to size each NVRAM area for the PH services |
+| `audioOutput` | the host's audio sink, if it has one |
+| `configuration` | what the host reports in `getDiagnostics()` |
+
+## Fonts
+
+**2.1.0 and later: register `BML-PH Sans`.** It is the PH face — Noto Sans Mono CJK JP derived, with
+the BML cell enforced on every Latin letter (advance 0.5 em, accents matched to their base width) and
+kana/kanji/`U+3000` at 1 em. No `unicodeRange` trick is needed: the face draws `U+3000` at 1 em
+itself.
+
+```js
+new BMLBrowser({
+  fonts: {
+    roundGothic:     { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
+    boldRoundGothic: { source: "url(/fonts/BMLPH-Sans-Bold.woff2)" },
+    squareGothic:    { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
+    fallback:        { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
+    lastResort:      { source: "url(/fonts/BMLPH-Sans-Regular.woff2)" },
+  },
+});
+```
+
+`BMLPH-SansLite-Regular.woff2` is the same face with JIS level 1 only (0.58 MB instead of 1.09 MB) for
+hosts with a tight budget; the family name is `BML-PH Sans Lite` and it registers the same way.
+`BMLPH-Sans-{latin-ph,kana,cjk,symbols}.woff2` are unicode-range chunks of the full face for lazy
+loading (register one `@font-face` per chunk with the matching `unicodeRange`).
+
+The `.ttf` files are for Windows install (Settings > Fonts lists both families).
+
+**2.3.0 adds the alternative look:** `BMLPH-RoundGothic-Regular.woff2` (family `BML-PH RoundGothic`,
+Kosugi-based, same cell and coverage). There is no bold cut — CSS synthesizes it.
+
+**Decision (2026-11-02): the default mapping is uniform Sans.** Point `roundGothic` at
+`BMLPH-Sans-Regular.woff2` too, as in the block above. The spec's initial `font-family` is
+`"丸ゴシック"` (STD-B24 A2-4.4.8), so a page that names nothing lands in the `roundGothic` slot; filling
+that slot with the maru face makes every unlabelled page rounded, and mixing it with a square page is
+a visible change from the single face hosts shipped before. Uniform Sans is a **deliberate departure
+from that initial value**, recorded here so it is not "fixed" back by accident.
+
+A host that ships both faces should offer the look as a **setting**, not a build: default
+`BML-PH Sans`, option `BML-PH RoundGothic` in all six slots.
+
+**3.0.0 removes the old faces.** `MPLUS1Code*`, `MPLUS1P`, `PHLatin` and `Kosugi*` go; the option keys
+stay exactly as they are. After 3.0.0 the `phLatin` slot ships no default file — register `BML-PH Sans`
+there too, or drop the slot and let `fallback` cover it.
+
+### Layout check (the half the font file cannot prove)
+
+`fonts-ink.test.mjs` proves the glyph's ink stays inside its cell. It cannot prove that the browser
+**advances** the widths a receiver advances — that was the M PLUS 1 Code bug, where U+3000 advanced
+0.5 em and three padded layers collided.
+
+`test/fixtures/layout-cell-probe.html` measures it. Serve the fonts directory over HTTP (a `file://`
+font URL is blocked by the browser's font loader), then open:
+
+```
+http://127.0.0.1:<port>/layout-cell-probe.html?font=BML-PH%20Sans&file=/BMLPH-Sans-Regular.woff2
+```
+
+It prints a table and JSON to `#out` and `document.title`. **It must await `document.fonts.load()`**
+before measuring — a probe that only waits for `document.fonts.ready` measures the fallback instead of
+the face (every face then reports the same numbers, which is the tell). Pass at 32 px: A/0/ñ 16,
+あ/日/U+3000 32, `AあA` 64, two U+3000 64.
+### Stream identity (2.4.2)
+
+`programInfo` is the identity a host should trust:
+
+```js
+{ type: "programInfo", networkId, originalNetworkId, transportStreamId, serviceId,
+  serviceName, eventName, startTimeUnixMillis, durationSeconds, indefiniteDuration }
+```
+
+- `networkId` decides the region — Japanese satellite identities (`0x0004`, `0x0006/7`, `0x000A`,
+  `0x000B/C`) and the terrestrial allocation (`0x7880–0x7FE8`); the PH muxes are outside both.
+- `serviceName` (new) is the SDT's own name for the selected service, decoded; null until its SDT is
+  seen. It is the cross-check for `networkId` and what a host displays.
+- It is sent again whenever any field changes, so a tune or a file with a different service is not
+  missed.
+
+A host that plays a **file through a pseudo-tuner** (a UDP driver) has no real `ChannelInfo` — its
+network id is 0 and its service list is not populated. Read `programInfo` instead of guessing from the
+user's configured region: that is the difference between a Japanese capture rendered in the Philippine
+face with its clock nine hours off, and one rendered as the stream says it is.
+### Pointer input (2.4.0)
+
+A host with a mouse or a touch pointer should call `clickAt(x, y)` rather than dispatching DOM clicks
+or reaching into the navigation helpers:
+
+```js
+browser.clickAt(pageX, pageY);      // page CSS pixels; false when the page does not take the click
+browser.elementAt(pageX, pageY);    // the same target without clicking, for a hover/cursor
+```
+
+Semantics that matter (they were learned from BMLPLAYER's Mouse mode):
+
+- the page lives in a **closed shadow root**, so the hit test runs on that root, not `document`;
+- only an element carrying an inherited `--nav-index` counts — the owner is resolved with the same
+  navigation rule the remote uses, so a click on an image inside an object does not act as the object;
+- a `false` return means the page did not take the click (page root, empty area, no nav-index) — fall
+  back to the host's own chrome instead of pretending otherwise;
+- it does what Enter does: `internalSetActive`, the synchronous `click` event, `processEventQueue`, and
+  an anchor's `href` (launch or fragment).
+### The pre-2.1.0 M+ stack
+
+The old registration still works and its files still ship (deprecated, removed in 3.0.0):
+
+```js
+new BMLBrowser({
+  fonts: {
+    roundGothic:     { source: "url(/fonts/MPLUS1Code-Regular.woff2)" },
+    boldRoundGothic: { source: "url(/fonts/MPLUS1Code-Bold.woff2)" },
+    squareGothic:    { source: "url(/fonts/MPLUS1Code-Regular.woff2)" },
+    fallback:        { source: "url(/fonts/MPLUS1P-Regular.woff2)" },
+    lastResort:      { source: "url(/fonts/KosugiMaru-Regular.woff2)" },
+  },
+});
+```
+
+If you keep the M+ faces, **give the three BML faces a `unicodeRange` that leaves U+3000 out** —
+MPLUS1Code draws U+3000 at 0.5 em while MPLUS1P and Kosugi draw it at 1 em, so a page that pads with
+it (TBS's `createPage()`) lands its coloured text on top of the base text. Route it to the fallback:
+
+```js
+const mPlus = (file) => ({ source: `url(/fonts/${file})`, descriptors: { unicodeRange: "U+0-2FFF, U+3001-10FFFF" } });
+```
+
+A host that registers nothing renders in the browser's monospace — still correct, just not the
+profile's look.## Clock
+
+The standard says the TOT field is **national time** — for PH, official Filipino time, UTC+8 — and
+that `=0` fixes region, `local_time_offset` and `next_time_offset` at 0 (NTC MC 07-12-2014 Annex 5-1
+§19.2 and Table 35; ABNT NBR 15608-3 Tables 35 and 36). Under that reading the field **is** the clock
+and needs no correction.
+
+The band does not all follow it. Measured 2026-10-31: TV5 sends local time with 0 offsets (matches),
+GMA puts **UTC** in the field (8 hours behind), ALLTV declares BRA, RPTV sends TDT only. The ABS-CBN
+TVplus ignores all of it and adds +8 to whatever the field holds (hardware test 2026-10-06), which is
+why a viewer watching GMA sees the right clock on that box.
+
+The two measured files, with the evidence that makes each reading right:
+
+| mux | TOT field | +480 gives | evidence |
+|---|---|---|---|
+| GMA | 15:24 (UTC) | 23:24 | the capture's own mtime is 2023-09-14 23:29 local — +480 is correct for this file |
+| TV5 | 19:29 (17 Apr, national time) | 03:30 next day | the picture is an ESPN "Saturday Primetime" game, so 19:29 was the local broadcast hour — +480 reads eight hours ahead |
+
+Measured on the set 2026-11-02; the same sweep result as 2026-10-31. So **no single policy is right for
+both muxes** — that is a fact about the air, not about the host.
+
+**The chosen default (2026-11-04): the box.** A host that sets nothing gets `+480` for a PH stream and
+JST for a Japanese one — the engine now picks by the stream identity (`networkId`, and for the satellite
+ids the `transportStreamId`), so a host that never configures the clock still shows what the viewer
+expects. Offer a **Settings row** for the other reading:
+
+| setting | `timeZoneOffsetMinutes` | GMA | TV5 |
+|---|---|---|---|
+| "like my TVplus" (default) | `480` — or omit | ✅ | 8 h ahead |
+| "as the stream says" | `0` | 8 h behind | ✅ |
+
+The engine reports the TOT **field verbatim** and the descriptor verbatim (diagnostic). The host picks
+one policy:
+
+- **the box (default for a PH receiver)** — `timeZoneOffsetMinutes: 480`, display the field plus 480.
+  GMA reads correctly; a standard-conforming stream like TV5 reads 8 hours ahead. This is what the
+  viewer's TVplus shows;
+- **as sent (the standard)** — do not add anything; TV5 reads correctly and GMA reads 8 hours behind.
+
+Do not "correct" from the descriptor: it is inert on the box, and the two PH descriptor vintages
+disagree (our 2023 TV5 captures declare +8:00; the 2026 sweep reads 00:00).
+
+## NVRAM
+
+`nvramAreaBytes: 4096` sizes the affiliation and broadcaster areas the way the standard does. The
+remaining areas keep their table size; the default is unchanged.
+
+## Checking a configuration
+
+`getDiagnostics()` returns the document and phase, locks, pending resources, table reads, script
+errors, and `configuration` — the host's own report. That is the first thing to read when a page
+looks wrong.
+
+## Licence
+
+The engine is MIT. The fonts are SIL OFL 1.1 (`fonts/OFL-MPLUS1Code.txt`, `fonts/LICENSE.txt`).
