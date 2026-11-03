@@ -16,5 +16,23 @@ export type DecodeTSOptions = {
     parsePES?: boolean;
     logger?: DecodeTSLogger;
 };
+/** The BIT section shape this module needs; the library's type, narrowed to what is read. */
+export type BitSection = {
+    originalNetworkId: number;
+    broadcasters: {
+        broadcasterId: number;
+        broadcasterDescriptors: readonly unknown[];
+    }[];
+};
+/**
+ * 2.6.1: BIT section → the "bit" message the client's BroadcasterDatabase consumes.
+ *
+ * The table carries a broadcaster's name (0xD8), its service list (0x41) and, for terrestrial
+ * broadcasters, the extended broadcaster descriptor (0xCE) with the affiliation ids and the broadcasters
+ * that belong to the same affiliation. A BS/CS broadcaster may carry no 0xCE at all — the BS-TBS capture
+ * has only serviceList, siParameter and broadcasterName — so an empty affiliation list is a fact about
+ * the stream, not a parse failure.
+ */
+export declare function bitMessageFromSection(section: BitSection): wsApi.BITMessage;
 export declare function decodeTS(options: DecodeTSOptions): TSReader;
 //# sourceMappingURL=decode_ts.d.ts.map

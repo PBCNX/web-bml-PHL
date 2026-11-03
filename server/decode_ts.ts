@@ -144,6 +144,56 @@ function concatBuffers(buffers: Uint8Array[]): Uint8Array {
     return result;
 }
 
+/** The BIT section shape this module needs; the library's type, narrowed to what is read. */
+export type BitSection = {
+    originalNetworkId: number,
+    broadcasters: {
+        broadcasterId: number,
+        broadcasterDescriptors: readonly unknown[],
+    }[],
+};
+
+type BitDescriptor = {
+    tag: string,
+    name?: Uint8Array,
+    services?: { serviceId: number, serviceType: number }[],
+    broadcasterType?: number | "terrestrial",
+    terrestrialBroadcasterId?: number,
+    affiliationIdList?: number[],
+    broadcasters?: { originalNetworkId: number, broadcasterId: number }[],
+};
+
+/**
+ * 2.6.1: BIT section → the "bit" message the client's BroadcasterDatabase consumes.
+ *
+ * The table carries a broadcaster's name (0xD8), its service list (0x41) and, for terrestrial
+ * broadcasters, the extended broadcaster descriptor (0xCE) with the affiliation ids and the broadcasters
+ * that belong to the same affiliation. A BS/CS broadcaster may carry no 0xCE at all — the BS-TBS capture
+ * has only serviceList, siParameter and broadcasterName — so an empty affiliation list is a fact about
+ * the stream, not a parse failure.
+ */
+export function bitMessageFromSection(section: BitSection): wsApi.BITMessage {
+    const broadcasters: wsApi.BITBroadcaster[] = section.broadcasters.map((broadcaster) => {
+        const descriptors = broadcaster.broadcasterDescriptors as unknown as BitDescriptor[];
+        const name = descriptors.find((d) => d.tag === "broadcasterName");
+        const serviceList = descriptors.find((d) => d.tag === "serviceList");
+        const extended = descriptors.find((d) => d.tag === "extendedBroadcaster" && d.broadcasterType === "terrestrial");
+        return {
+            broadcasterId: broadcaster.broadcasterId,
+            broadcasterName: name?.name == null ? null : decodeSITextOrAscii(name.name),
+            services: (serviceList?.services ?? []).map((service) => ({ serviceType: service.serviceType, serviceId: service.serviceId })),
+            affiliations: extended?.affiliationIdList ?? [],
+            affiliationBroadcasters: (extended?.broadcasters ?? []).map((b) => ({ originalNetworkId: b.originalNetworkId, broadcasterId: b.broadcasterId })),
+            ...(extended?.terrestrialBroadcasterId != null ? { terrestrialBroadcasterId: extended.terrestrialBroadcasterId } : {}),
+        };
+    });
+    return {
+        type: "bit",
+        originalNetworkId: section.originalNetworkId,
+        broadcasters,
+    };
+}
+
 export function decodeTS(options: DecodeTSOptions) {
     const reader = new TSReader();
     const { sendCallback: send, serviceId: specifiedServiceId, parsePES } = options;
@@ -478,6 +528,15 @@ export function decodeTS(options: DecodeTSOptions) {
                 networkId: section.networkId,
             });
         }
+    });
+
+    reader.addEventListener("bit", ({ section }) => {
+        // 2.6.1: forward the broadcaster information table. The client's BroadcasterDatabase already
+        // knows how to store a "bit" message; nothing produced one, so a Japanese page that reads its
+        // affiliation/group memory (nvram://03;group/…) was refused as "affiliationId == null" even
+        // when the stream carried the table. The PH muxes do not use group memory, but a played JP
+        // capture should behave like the box.
+        send(bitMessageFromSection(section));
     });
 
     reader.addEventListener("sdt", ({ section }) => {

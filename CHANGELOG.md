@@ -3,6 +3,17 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.6.1 — BIT is forwarded
+
+- `decode_ts` now emits the **`bit`** message (broadcaster information table). The client's
+  `BroadcasterDatabase` already knew how to store it, but nothing produced one, so a Japanese page that
+  reads its affiliation/group memory (`nvram://03;group/…`) was refused as `affiliationId == null` even
+  when the stream carried the table. The data is now learned when present and stored with the same
+  version rules as before; the PH paths are untouched.
+- Measured on `BS-TBS_20230115-175120.ts`: 30 broadcasters forwarded, broadcaster 4 carries services
+  161/162/163/169/766/768 and the name `ＢＳＴＢＳ` — and **no extended broadcaster descriptor**, so its
+  affiliation list stays empty. That warning on this capture is the stream, not the parser.
+- The section→message mapping is a tested pure function (`bitMessageFromSection`).
 ## 2.6.0 — a host can set the receiver area, as one set
 
 - **`browser.setReceiverAreaCode(code)` / `NVRAM#setReceiverAreaCode`** — the write side of 2.5.0's
