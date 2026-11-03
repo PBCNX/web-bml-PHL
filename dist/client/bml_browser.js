@@ -246,6 +246,16 @@ class BMLBrowser {
         return this.nvram.getReceiverAreaCode();
     }
     /**
+     * 2.6.0: a host sets the viewer's Philippine area code (12 bits), or null/0 to clear it.
+     *
+     * Writes the receiver-info set as a whole — `regioncode` plus `prefecture` 255 and an empty
+     * `zipcode` — and writes nothing when the stored set already matches, so a host may call it at
+     * every session start. Returns true when something was written.
+     */
+    setReceiverAreaCode(code) {
+        return this.nvram.setReceiverAreaCode(code);
+    }
+    /**
      * 2.5.0: the area code with the Philippine allocation resolved — the code itself, its zone, its
      * region and the name at its own level. null when no code is set, or when the code is outside the
      * 139-code table (a Japanese code, or a host that wrote something else).

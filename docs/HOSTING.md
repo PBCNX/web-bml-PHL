@@ -214,6 +214,12 @@ browser.receiverArea;       // { code, kind: "city", name: "Caloocan",
 wrong region. NVRAM stays the transport; the accessors are the friendly surface, so a future encoding
 change is a host change that keeps pages working.
 
+A host sets the code with **`browser.setReceiverAreaCode(code)`** (2.6.0), or `null`/`0` to clear it.
+It writes the set as a whole — `regioncode` plus `prefecture` 255 and an empty `zipcode` — so a PH code
+can never sit beside a leftover Japanese postal code, and it writes **nothing** when the stored set
+already matches, because a host calls it at every session start and NVRAM wear is a real constraint
+(`BML-NV-09`). It returns `true` when something was written.
+
 **A host must choose the receiver-info set as a whole.** A Japanese stream never gets a Philippine code
 (not even when no Japanese postal code is configured), and a Philippine stream gets the PH set. If hosts
 disagree, the same page shows a different region on each receiver.

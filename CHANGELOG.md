@@ -3,6 +3,18 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.6.0 — a host can set the receiver area, as one set
+
+- **`browser.setReceiverAreaCode(code)` / `NVRAM#setReceiverAreaCode`** — the write side of 2.5.0's
+  read side, asked for by BaronTV (a host had only the engine's private localStorage keys).
+  - `code` is the 12-bit PH area code, `null`/`0` clears; `receiverAreaCode` reads back the same way, so
+    "what I wrote" and "what a page reads" cannot differ.
+  - writes the set as a whole: `regioncode`, `prefecture` 255, `zipcode` empty — a PH code can never sit
+    beside a leftover Japanese postal code.
+  - writes **nothing** when the stored set already matches (NVRAM wear, `BML-NV-09`), and returns whether
+    anything changed.
+  - the encoding is a tested pure function (`receiverAreaCodeSet`); tests seed Japanese postal fields and
+    assert they are overwritten.
 ## 2.5.0 — the receiver's area code is a contract
 
 - `browser.receiverAreaCode` — the viewer's **12-bit Philippine EWBS area code** from

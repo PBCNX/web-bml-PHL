@@ -9,6 +9,18 @@ import { type NvramAreaSizing } from "./nvram_sizing";
  * absent value both mean "unset", which the caller turns into `null`.
  */
 export declare function regionCodeFromBytes(bytes: Uint8Array | null | undefined): number | null;
+/**
+ * 2.6.0: the three receiver-info fields for an area code, as one set.
+ *
+ * PH: `regioncode` carries the 12-bit code, `prefecture` is 255 (unset) and `zipcode` is empty. null
+ * and 0 both clear the code; the other two fields are set the same way, so "cleared" is still a PH set
+ * and never a leftover Japanese postal code.
+ */
+export declare function receiverAreaCodeSet(code: number | null | undefined): {
+    regionCode: Uint8Array;
+    prefecture: Uint8Array;
+    zipcode: Uint8Array;
+};
 export declare class NVRAM {
     private readonly resources;
     private readonly broadcasterDatabase;
@@ -50,6 +62,18 @@ export declare class NVRAM {
      * The transport stays NVRAM, so a page can still read the raw field; this is the friendly surface.
      */
     getReceiverAreaCode(): number | null;
+    /**
+     * 2.6.0: a host sets the viewer's Philippine area code, as one receiver-info set.
+     *
+     * `code` is the 12-bit PH area code, or null/0 to clear. The three fields are written together —
+     * `regioncode` (2 bytes, big-endian, low 12 bits), `prefecture` 255 and `zipcode` empty — because a
+     * PH code with Japanese postal fields is exactly the mixed state the convention forbids. Nothing is
+     * written when the stored set already matches, since a host calls this at every session start and
+     * NVRAM wear is a real constraint.
+     *
+     * Returns true when something was written.
+     */
+    setReceiverAreaCode(code: number | null): boolean;
     readPersistentArray(filename: string, structure: string): any[] | null;
     writePersistentArray(filename: string, structure: string, data: any[], period?: Date, force?: boolean): number;
     private providerAreaPermission;

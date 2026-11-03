@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NVRAM = void 0;
 exports.regionCodeFromBytes = regionCodeFromBytes;
+exports.receiverAreaCodeSet = receiverAreaCodeSet;
 // /documents/nvram.md参照
 const binary_table_1 = require("./binary_table");
 const profile_1 = require("../profile");
@@ -229,6 +230,32 @@ function regionCodeFromBytes(bytes) {
     }
     const code = ((bytes[0] << 8) | bytes[1]) & 0x0fff;
     return code === 0 ? null : code;
+}
+/**
+ * 2.6.0: the three receiver-info fields for an area code, as one set.
+ *
+ * PH: `regioncode` carries the 12-bit code, `prefecture` is 255 (unset) and `zipcode` is empty. null
+ * and 0 both clear the code; the other two fields are set the same way, so "cleared" is still a PH set
+ * and never a leftover Japanese postal code.
+ */
+function receiverAreaCodeSet(code) {
+    const value = code == null ? 0 : (code & 0x0fff);
+    return {
+        regionCode: Uint8Array.from([(value >> 8) & 0xff, value & 0xff]),
+        prefecture: Uint8Array.from([0xff]),
+        zipcode: new Uint8Array(7),
+    };
+}
+function sameBytes(a, b) {
+    if (a == null || a.length !== b.length) {
+        return false;
+    }
+    for (let i = 0; i < b.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 class NVRAM {
     resources;
@@ -571,6 +598,39 @@ class NVRAM {
      */
     getReceiverAreaCode() {
         return regionCodeFromBytes(this.readNVRAM("nvram://receiverinfo/regioncode"));
+    }
+    /**
+     * 2.6.0: a host sets the viewer's Philippine area code, as one receiver-info set.
+     *
+     * `code` is the 12-bit PH area code, or null/0 to clear. The three fields are written together —
+     * `regioncode` (2 bytes, big-endian, low 12 bits), `prefecture` 255 and `zipcode` empty — because a
+     * PH code with Japanese postal fields is exactly the mixed state the convention forbids. Nothing is
+     * written when the stored set already matches, since a host calls this at every session start and
+     * NVRAM wear is a real constraint.
+     *
+     * Returns true when something was written.
+     */
+    setReceiverAreaCode(code) {
+        const set = receiverAreaCodeSet(code);
+        const wanted = [
+            ["nvram://receiverinfo/regioncode", set.regionCode],
+            ["nvram://receiverinfo/prefecture", set.prefecture],
+            ["nvram://receiverinfo/zipcode", set.zipcode],
+        ];
+        let written = false;
+        for (const [uri, bytes] of wanted) {
+            const current = this.readNVRAM(uri);
+            if (sameBytes(current, bytes)) {
+                continue;
+            }
+            // force: the receiver-info fields are the host's to set, not the page's (TR-B14 5.2.7).
+            if (!Number.isFinite(this.writeNVRAM(uri, bytes, true))) {
+                this.logger.error(`setReceiverAreaCode: write failed`, uri);
+                continue;
+            }
+            written = true;
+        }
+        return written;
     }
     readPersistentArray(filename, structure) {
         if (!filename?.startsWith("nvram://")) {
