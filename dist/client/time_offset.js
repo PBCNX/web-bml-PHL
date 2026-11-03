@@ -23,6 +23,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PH_OFFSET_MINUTES = exports.JST_OFFSET_MINUTES = void 0;
+exports.defaultOffsetMinutesForNetwork = defaultOffsetMinutesForNetwork;
 exports.resolveLocalTimeOffset = resolveLocalTimeOffset;
 exports.describeLocalTimeOffsetSource = describeLocalTimeOffsetSource;
 exports.localTimeOffsetMinutes = localTimeOffsetMinutes;
@@ -33,6 +34,39 @@ exports.broadcastWallClockToUnixMillis = broadcastWallClockToUnixMillis;
 exports.isPhilippineOffset = isPhilippineOffset;
 exports.effectiveStreamOffsetMinutes = effectiveStreamOffsetMinutes;
 exports.streamClockOffsetMinutes = streamClockOffsetMinutes;
+/**
+ * 2.4.7: the offset to use when the host sets none, chosen by the stream's own network identity.
+ *
+ * The decision of 2026-11-02: the default follows the box (+480), because that is what the TVplus in
+ * the viewer's home does and what the largest network's field needs. Japan is kept correct for the
+ * Japanese captures a host may play: the satellite identities (0x0004, 0x0006/0x0007, 0x000A,
+ * 0x000B/0x000C) and the terrestrial allocation (0x7880-0x7FE8) take JST. A host that wants the
+ * standard's "as sent" reading sets the offset to 0 explicitly.
+ */
+function defaultOffsetMinutesForNetwork(networkId, transportStreamId) {
+    if (networkId == null) {
+        return exports.PH_OFFSET_MINUTES;
+    }
+    switch (networkId) {
+        case 0x0004: // BS
+        case 0x0006: // BS
+        case 0x0007: // BS
+        case 0x000a: // CS
+        case 0x000b: // CS
+        case 0x000c: // CS
+            // The PH muxes measured so far use small network ids too (GMA 1, another 3), so a
+            // satellite id alone would misread a PH stream as Japanese. Japan's BS/CS streams carry
+            // transport_stream_id from 0x4000 up (BS-TBS sends 0x4011); a PH mux sends 700 or 1000.
+            if (transportStreamId == null || transportStreamId >= 0x4000) {
+                return exports.JST_OFFSET_MINUTES;
+            }
+            return exports.PH_OFFSET_MINUTES;
+    }
+    if (networkId >= 0x7880 && networkId <= 0x7fe8) {
+        return exports.JST_OFFSET_MINUTES; // terrestrial Japan
+    }
+    return exports.PH_OFFSET_MINUTES;
+}
 /** JST, the fallback when the stream does not say: 9 hours east of UTC. */
 exports.JST_OFFSET_MINUTES = 9 * 60;
 /** The Philippine standard offset: 8 hours east of UTC. */

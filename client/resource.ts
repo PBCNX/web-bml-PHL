@@ -5,7 +5,7 @@ import { CustomEventTarget, Indicator, IP } from "./contracts";
 import { formatModuleRefForLog } from "./format";
 import { Diagnostics } from "./introspection";
 import { type Logger } from "./util/logger";
-import { describeLocalTimeOffsetSource, resolveLocalTimeOffset, type LocalTimeOffsetSource } from "./time_offset";
+import { defaultOffsetMinutesForNetwork, describeLocalTimeOffsetSource, resolveLocalTimeOffset, type LocalTimeOffsetSource } from "./time_offset";
 import type { AudioOutput } from "./media/audio_output";
 
 type Module = {
@@ -529,7 +529,13 @@ export class Resources {
      * configuration snapshot cannot state a different rule.
      */
     public get localTimeOffsetMinutes(): number {
-        return resolveLocalTimeOffset(this.timeZoneOffsetMinutes, this._localTimeOffsetMinutes ?? null);
+        // 2.4.7: an unset host offset follows the box for PH (+480) and JST for a Japanese stream, so
+        // a host that never configures the clock still shows the time its viewers expect.
+        return resolveLocalTimeOffset(
+            this.timeZoneOffsetMinutes,
+            this._localTimeOffsetMinutes ?? null,
+            defaultOffsetMinutesForNetwork(this.currentProgramInfo?.networkId, this.currentProgramInfo?.transportStreamId),
+        );
     }
 
     /** Where the offset in use came from: the host, the stream, or the JST default. */

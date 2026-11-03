@@ -159,6 +159,16 @@ The two measured files, with the evidence that makes each reading right:
 Measured on the set 2026-11-02; the same sweep result as 2026-10-31. So **no single policy is right for
 both muxes** — that is a fact about the air, not about the host.
 
+**The chosen default (2026-11-04): the box.** A host that sets nothing gets `+480` for a PH stream and
+JST for a Japanese one — the engine now picks by the stream identity (`networkId`, and for the satellite
+ids the `transportStreamId`), so a host that never configures the clock still shows what the viewer
+expects. Offer a **Settings row** for the other reading:
+
+| setting | `timeZoneOffsetMinutes` | GMA | TV5 |
+|---|---|---|---|
+| "like my TVplus" (default) | `480` — or omit | ✅ | 8 h ahead |
+| "as the stream says" | `0` | 8 h behind | ✅ |
+
 The engine reports the TOT **field verbatim** and the descriptor verbatim (diagnostic). The host picks
 one policy:
 

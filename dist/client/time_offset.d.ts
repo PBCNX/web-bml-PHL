@@ -20,6 +20,16 @@
  * are real, so the engine keeps reporting the field and the descriptor verbatim and the host picks a
  * policy (`docs/HOSTING.md`).
  */
+/**
+ * 2.4.7: the offset to use when the host sets none, chosen by the stream's own network identity.
+ *
+ * The decision of 2026-11-02: the default follows the box (+480), because that is what the TVplus in
+ * the viewer's home does and what the largest network's field needs. Japan is kept correct for the
+ * Japanese captures a host may play: the satellite identities (0x0004, 0x0006/0x0007, 0x000A,
+ * 0x000B/0x000C) and the terrestrial allocation (0x7880-0x7FE8) take JST. A host that wants the
+ * standard's "as sent" reading sets the offset to 0 explicitly.
+ */
+export declare function defaultOffsetMinutesForNetwork(networkId: number | null | undefined, transportStreamId: number | null | undefined): number;
 /** JST, the fallback when the stream does not say: 9 hours east of UTC. */
 export declare const JST_OFFSET_MINUTES: number;
 /** The Philippine standard offset: 8 hours east of UTC. */

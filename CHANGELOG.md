@@ -3,6 +3,16 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.4.7 — the clock default follows the stream, and it is the box
+
+- Decision 2026-11-04: the default clock policy is **the box** (`+480`), because that is what the
+  TVplus in the viewer's home does and what GMA's UTC field needs; the other reading is a host setting.
+- With no host offset, the engine now chooses by stream identity instead of always JST: `+480` for a
+  PH stream, JST for a Japanese one (satellite `0x0004/6/7/A/B/C` with a `transport_stream_id` from
+  `0x4000`, or terrestrial `0x7880–0x7FE8`). The PH muxes use small network ids too (GMA 1, another 3),
+  which is why the satellite branch also checks the transport id — BS-TBS sends network 4, tsid 0x4011.
+- "As the stream says" is `timeZoneOffsetMinutes: 0`; HOSTING has the two-row setting table.
+- Measured: GMA UTC field + mtime (box right), TV5 national field + ESPN primetime (as-sent right).
 ## 2.4.6 — control codes take no cell
 
 - C0 and C1 code points are skipped by the text layout instead of being laid out as half-width spans.

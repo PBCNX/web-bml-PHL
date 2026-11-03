@@ -355,7 +355,9 @@ class Resources {
      * configuration snapshot cannot state a different rule.
      */
     get localTimeOffsetMinutes() {
-        return (0, time_offset_1.resolveLocalTimeOffset)(this.timeZoneOffsetMinutes, this._localTimeOffsetMinutes ?? null);
+        // 2.4.7: an unset host offset follows the box for PH (+480) and JST for a Japanese stream, so
+        // a host that never configures the clock still shows the time its viewers expect.
+        return (0, time_offset_1.resolveLocalTimeOffset)(this.timeZoneOffsetMinutes, this._localTimeOffsetMinutes ?? null, (0, time_offset_1.defaultOffsetMinutesForNetwork)(this.currentProgramInfo?.networkId, this.currentProgramInfo?.transportStreamId));
     }
     /** Where the offset in use came from: the host, the stream, or the JST default. */
     get localTimeOffsetSource() {
