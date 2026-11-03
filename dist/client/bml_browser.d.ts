@@ -50,6 +50,22 @@ export type DiagnosticsSnapshot = {
         expectedCodec: string | null;
         labelAgrees: boolean;
     }[];
+    /**
+     * 2.5.0: the receiver's own area code and its resolved Philippine names, or null when unset. This is
+     * the first thing to read when a page shows the wrong region.
+     */
+    receiver: {
+        areaCode: number | null;
+        area: {
+            code: number;
+            kind: "zone" | "region" | "city";
+            name: string;
+            zone: number;
+            zoneName: string;
+            region: number;
+            regionName: string;
+        } | null;
+    };
     events: BeventRecord[];
     health: {
         pendingByReason: Record<string, number>;
@@ -266,6 +282,27 @@ export declare class BMLBrowser {
      * what a hover needs.
      */
     elementAt(x: number, y: number): HTMLElement | null;
+    /**
+     * 2.5.0: the viewer's Philippine EWBS area code (12 bits), or null when the host has not set one.
+     *
+     * The host writes `nvram://receiverinfo/regioncode`; this reads the same field, so a page can ask
+     * "my code" without knowing the NVRAM layout. Resolve it with `receiverArea`.
+     */
+    get receiverAreaCode(): number | null;
+    /**
+     * 2.5.0: the area code with the Philippine allocation resolved — the code itself, its zone, its
+     * region and the name at its own level. null when no code is set, or when the code is outside the
+     * 139-code table (a Japanese code, or a host that wrote something else).
+     */
+    get receiverArea(): {
+        code: number;
+        kind: "zone" | "region" | "city";
+        name: string;
+        zone: number;
+        zoneName: string;
+        region: number;
+        regionName: string;
+    } | null;
     getDiagnostics(): DiagnosticsSnapshot;
     /**
      * P2/EWBS: what the receiver does with an alert.

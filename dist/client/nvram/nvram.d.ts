@@ -2,6 +2,13 @@ import { BroadcasterDatabase } from "../broadcast/broadcaster_database";
 import { Resources } from "../resource";
 import { type Logger } from "../util/logger";
 import { type NvramAreaSizing } from "./nvram_sizing";
+/**
+ * 2.5.0: the 12-bit area code out of the two bytes of `nvram://receiverinfo/regioncode`.
+ *
+ * The field is big-endian (`MJD`-style SI) and only the low 12 bits are the PH allocation; `0` and an
+ * absent value both mean "unset", which the caller turns into `null`.
+ */
+export declare function regionCodeFromBytes(bytes: Uint8Array | null | undefined): number | null;
 export declare class NVRAM {
     private readonly resources;
     private readonly broadcasterDatabase;
@@ -32,6 +39,17 @@ export declare class NVRAM {
     private getLocalStorageKey;
     private readNVRAM;
     private writeNVRAM;
+    /**
+     * 2.5.0: the viewer's Philippine EWBS area code, from `nvram://receiverinfo/regioncode`.
+     *
+     * PBCNX extension (0). In TR38 that field **is** a 12-bit area code — the Japanese use is an area
+     * code too — but the PH profile never mapped its own allocation onto it (the standards guide holds
+     * it as `BML-NV-07`, status unknown) and it defines no other viewer-location field. TVTest-PHL
+     * writes the 12-bit PH code there for a PH stream; `0` (or no value) means unset.
+     *
+     * The transport stays NVRAM, so a page can still read the raw field; this is the friendly surface.
+     */
+    getReceiverAreaCode(): number | null;
     readPersistentArray(filename: string, structure: string): any[] | null;
     writePersistentArray(filename: string, structure: string, data: any[], period?: Date, force?: boolean): number;
     private providerAreaPermission;

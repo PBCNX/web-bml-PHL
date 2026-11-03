@@ -30,6 +30,7 @@ const event_queue_1 = require("./event_queue");
 const bml_dom_1 = require("./dom/bml_dom");
 const es2_interpreter_1 = require("./interpreter/es2_interpreter");
 const nvram_1 = require("./nvram/nvram");
+const area_code_1 = require("./area_code");
 const resource_1 = require("./resource");
 const logger_1 = require("./util/logger");
 const overlay_input_1 = require("./overlay_input");
@@ -235,6 +236,41 @@ class BMLBrowser {
     elementAt(x, y) {
         return this.content.elementAt(x, y);
     }
+    /**
+     * 2.5.0: the viewer's Philippine EWBS area code (12 bits), or null when the host has not set one.
+     *
+     * The host writes `nvram://receiverinfo/regioncode`; this reads the same field, so a page can ask
+     * "my code" without knowing the NVRAM layout. Resolve it with `receiverArea`.
+     */
+    get receiverAreaCode() {
+        return this.nvram.getReceiverAreaCode();
+    }
+    /**
+     * 2.5.0: the area code with the Philippine allocation resolved — the code itself, its zone, its
+     * region and the name at its own level. null when no code is set, or when the code is outside the
+     * 139-code table (a Japanese code, or a host that wrote something else).
+     */
+    get receiverArea() {
+        const code = this.receiverAreaCode;
+        if (code == null) {
+            return null;
+        }
+        const area = (0, area_code_1.areaByCode)(code);
+        if (area == null) {
+            return null;
+        }
+        const zone = code & 0xe00;
+        const region = code & 0xfe0;
+        return {
+            code,
+            kind: (0, area_code_1.isZone)(code) ? "zone" : (0, area_code_1.isRegion)(code) ? "region" : "city",
+            name: area.name,
+            zone,
+            zoneName: (0, area_code_1.areaByCode)(zone)?.name ?? "",
+            region,
+            regionName: (0, area_code_1.areaByCode)(region)?.name ?? "",
+        };
+    }
     getDiagnostics() {
         const diagnostics = this.resources.diagnostics;
         const page = this.content.inspect();
@@ -243,6 +279,7 @@ class BMLBrowser {
         const tables = diagnostics.describeTables();
         const errors = diagnostics.describeScripts();
         const audioCodecs = this.resources.audioCodecs;
+        const receiverArea = this.receiverArea;
         const pendingByReason = {};
         for (const pending of resources.pending) {
             pendingByReason[pending.reason] = (pendingByReason[pending.reason] ?? 0) + 1;
@@ -325,6 +362,7 @@ class BMLBrowser {
             errors,
             streamErrors: diagnostics.describeStreamErrors(),
             audioCodecs,
+            receiver: { areaCode: this.receiverAreaCode, area: receiverArea },
             events: diagnostics.describeEvents(),
             health: {
                 pendingByReason,
@@ -420,14 +458,14 @@ class BMLBrowser {
     }
 }
 exports.BMLBrowser = BMLBrowser;
-var area_code_1 = require("./area_code");
-Object.defineProperty(exports, "PH_AREAS", { enumerable: true, get: function () { return area_code_1.PH_AREAS; } });
-Object.defineProperty(exports, "ZONE_MASK", { enumerable: true, get: function () { return area_code_1.ZONE_MASK; } });
-Object.defineProperty(exports, "REGION_MASK", { enumerable: true, get: function () { return area_code_1.REGION_MASK; } });
-Object.defineProperty(exports, "areaByCode", { enumerable: true, get: function () { return area_code_1.areaByCode; } });
-Object.defineProperty(exports, "areaName", { enumerable: true, get: function () { return area_code_1.areaName; } });
-Object.defineProperty(exports, "isZone", { enumerable: true, get: function () { return area_code_1.isZone; } });
-Object.defineProperty(exports, "isRegion", { enumerable: true, get: function () { return area_code_1.isRegion; } });
-Object.defineProperty(exports, "areaCovers", { enumerable: true, get: function () { return area_code_1.areaCovers; } });
-Object.defineProperty(exports, "areaRelevant", { enumerable: true, get: function () { return area_code_1.areaRelevant; } });
+var area_code_2 = require("./area_code");
+Object.defineProperty(exports, "PH_AREAS", { enumerable: true, get: function () { return area_code_2.PH_AREAS; } });
+Object.defineProperty(exports, "ZONE_MASK", { enumerable: true, get: function () { return area_code_2.ZONE_MASK; } });
+Object.defineProperty(exports, "REGION_MASK", { enumerable: true, get: function () { return area_code_2.REGION_MASK; } });
+Object.defineProperty(exports, "areaByCode", { enumerable: true, get: function () { return area_code_2.areaByCode; } });
+Object.defineProperty(exports, "areaName", { enumerable: true, get: function () { return area_code_2.areaName; } });
+Object.defineProperty(exports, "isZone", { enumerable: true, get: function () { return area_code_2.isZone; } });
+Object.defineProperty(exports, "isRegion", { enumerable: true, get: function () { return area_code_2.isRegion; } });
+Object.defineProperty(exports, "areaCovers", { enumerable: true, get: function () { return area_code_2.areaCovers; } });
+Object.defineProperty(exports, "areaRelevant", { enumerable: true, get: function () { return area_code_2.areaRelevant; } });
 //# sourceMappingURL=bml_browser.js.map

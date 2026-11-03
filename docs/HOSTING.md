@@ -185,6 +185,38 @@ disagree (our 2023 TV5 captures declare +8:00; the 2026 sweep reads 00:00).
 `nvramAreaBytes: 4096` sizes the affiliation and broadcaster areas the way the standard does. The
 remaining areas keep their table size; the default is unchanged.
 
+## PH profile — receiver area (2.5.0)
+
+The viewer's own area is a **PBCNX extension**, declared here rather than implied:
+
+| field | value |
+|---|---|
+| `nvram://receiverinfo/regioncode` | the **12-bit Philippine EWBS area code**, big-endian; low 12 bits; `0` = unset |
+| `nvram://receiverinfo/prefecture` | `255` (unset) |
+| `nvram://receiverinfo/zipcode` | empty |
+
+Why it is defensible: in TR38 that field **is** a 12-bit area code (the Japanese use is an area code
+too), and the PH allocation is also 12-bit and hierarchical (zone → region → city). The PH profile never
+mapped its own allocation onto it — the community guide holds that as `BML-NV-07`, status **unknown** —
+and defines no other viewer-location field, so the alternative is that a PH page cannot know the
+viewer's region at all.
+
+Pages read it through the engine, not through the field layout:
+
+```js
+browser.receiverAreaCode;   // 0x421, or null when unset
+browser.receiverArea;       // { code, kind: "city", name: "Caloocan",
+                            //   zone: 0x400, zoneName: "Luzon",
+                            //   region: 0x420, regionName: "NCR" }
+```
+
+`getDiagnostics().receiver` reports the same two things — the first place to look when a page shows the
+wrong region. NVRAM stays the transport; the accessors are the friendly surface, so a future encoding
+change is a host change that keeps pages working.
+
+**A host must choose the receiver-info set as a whole.** A Japanese stream never gets a Philippine code
+(not even when no Japanese postal code is configured), and a Philippine stream gets the PH set. If hosts
+disagree, the same page shows a different region on each receiver.
 ## Checking a configuration
 
 `getDiagnostics()` returns the document and phase, locks, pending resources, table reads, script

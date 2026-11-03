@@ -15,6 +15,7 @@ import { ES2Interpreter } from "./interpreter/es2_interpreter";
 import { Interpreter } from "./interpreter/interpreter";
 import { type BeventRecord, type LockRecord, type ScriptRecord, type StreamErrorRecord, type TableRecord } from "./introspection";
 import { NVRAM } from "./nvram/nvram";
+import { areaByCode, isRegion, isZone } from "./area_code";
 import { Resources, type ResourcesDescription } from "./resource";
 import { Logger, type LogLevel as LoggerLogLevel } from "./util/logger";
 import { OverlayInputApplication } from "./overlay_input";
@@ -50,6 +51,14 @@ export type DiagnosticsSnapshot = {
      * subscribing to the message stream.
      */
     audioCodecs: { componentId: number, pid: number, streamType: number, codec: string, expectedCodec: string | null, labelAgrees: boolean }[],
+    /**
+     * 2.5.0: the receiver's own area code and its resolved Philippine names, or null when unset. This is
+     * the first thing to read when a page shows the wrong region.
+     */
+    receiver: {
+        areaCode: number | null,
+        area: { code: number, kind: "zone" | "region" | "city", name: string, zone: number, zoneName: string, region: number, regionName: string } | null,
+    },
     events: BeventRecord[],
     health: {
         pendingByReason: Record<string, number>,
@@ -426,6 +435,43 @@ export class BMLBrowser {
         return this.content.elementAt(x, y);
     }
 
+    /**
+     * 2.5.0: the viewer's Philippine EWBS area code (12 bits), or null when the host has not set one.
+     *
+     * The host writes `nvram://receiverinfo/regioncode`; this reads the same field, so a page can ask
+     * "my code" without knowing the NVRAM layout. Resolve it with `receiverArea`.
+     */
+    public get receiverAreaCode(): number | null {
+        return this.nvram.getReceiverAreaCode();
+    }
+
+    /**
+     * 2.5.0: the area code with the Philippine allocation resolved — the code itself, its zone, its
+     * region and the name at its own level. null when no code is set, or when the code is outside the
+     * 139-code table (a Japanese code, or a host that wrote something else).
+     */
+    public get receiverArea(): { code: number, kind: "zone" | "region" | "city", name: string, zone: number, zoneName: string, region: number, regionName: string } | null {
+        const code = this.receiverAreaCode;
+        if (code == null) {
+            return null;
+        }
+        const area = areaByCode(code);
+        if (area == null) {
+            return null;
+        }
+        const zone = code & 0xe00;
+        const region = code & 0xfe0;
+        return {
+            code,
+            kind: isZone(code) ? "zone" : isRegion(code) ? "region" : "city",
+            name: area.name,
+            zone,
+            zoneName: areaByCode(zone)?.name ?? "",
+            region,
+            regionName: areaByCode(region)?.name ?? "",
+        };
+    }
+
     public getDiagnostics(): DiagnosticsSnapshot {
         const diagnostics = this.resources.diagnostics;
         const page = this.content.inspect();
@@ -434,6 +480,7 @@ export class BMLBrowser {
         const tables = diagnostics.describeTables();
         const errors = diagnostics.describeScripts();
         const audioCodecs = this.resources.audioCodecs;
+        const receiverArea = this.receiverArea;
 
         const pendingByReason: Record<string, number> = {};
         for (const pending of resources.pending) {
@@ -517,6 +564,7 @@ export class BMLBrowser {
             errors,
             streamErrors: diagnostics.describeStreamErrors(),
             audioCodecs,
+            receiver: { areaCode: this.receiverAreaCode, area: receiverArea },
             events: diagnostics.describeEvents(),
             health: {
                 pendingByReason,

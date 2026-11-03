@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NVRAM = void 0;
+exports.regionCodeFromBytes = regionCodeFromBytes;
 // /documents/nvram.md参照
 const binary_table_1 = require("./binary_table");
 const profile_1 = require("../profile");
@@ -216,6 +217,19 @@ const nvramAreas = [
         isSecure: false,
     },
 ];
+/**
+ * 2.5.0: the 12-bit area code out of the two bytes of `nvram://receiverinfo/regioncode`.
+ *
+ * The field is big-endian (`MJD`-style SI) and only the low 12 bits are the PH allocation; `0` and an
+ * absent value both mean "unset", which the caller turns into `null`.
+ */
+function regionCodeFromBytes(bytes) {
+    if (bytes == null || bytes.length < 2) {
+        return null;
+    }
+    const code = ((bytes[0] << 8) | bytes[1]) & 0x0fff;
+    return code === 0 ? null : code;
+}
 class NVRAM {
     resources;
     broadcasterDatabase;
@@ -544,6 +558,19 @@ class NVRAM {
             localStorage.setItem(this.prefix + k, window.btoa(String.fromCharCode(...data)));
         }
         return data.length;
+    }
+    /**
+     * 2.5.0: the viewer's Philippine EWBS area code, from `nvram://receiverinfo/regioncode`.
+     *
+     * PBCNX extension (0). In TR38 that field **is** a 12-bit area code — the Japanese use is an area
+     * code too — but the PH profile never mapped its own allocation onto it (the standards guide holds
+     * it as `BML-NV-07`, status unknown) and it defines no other viewer-location field. TVTest-PHL
+     * writes the 12-bit PH code there for a PH stream; `0` (or no value) means unset.
+     *
+     * The transport stays NVRAM, so a page can still read the raw field; this is the friendly surface.
+     */
+    getReceiverAreaCode() {
+        return regionCodeFromBytes(this.readNVRAM("nvram://receiverinfo/regioncode"));
     }
     readPersistentArray(filename, structure) {
         if (!filename?.startsWith("nvram://")) {

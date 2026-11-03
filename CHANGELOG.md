@@ -3,6 +3,19 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.5.0 — the receiver's area code is a contract
+
+- `browser.receiverAreaCode` — the viewer's **12-bit Philippine EWBS area code** from
+  `nvram://receiverinfo/regioncode`, or `null` when unset (`0`). A declared **PBCNX extension**: in TR38
+  that field *is* a 12-bit area code, but the PH profile never mapped its allocation onto it (the guide
+  holds `BML-NV-07` as unknown) and defines no other viewer-location field.
+- `browser.receiverArea` — the same code resolved with the engine's own 139-code table: `kind`
+  (zone/region/city), `name`, and the enclosing zone and region with their names, so a page never
+  carries the allocation.
+- `getDiagnostics().receiver` reports both — the first place to look when a page shows the wrong region.
+- HOSTING gains "PH profile — receiver area": the field convention (`regioncode` = 12-bit code,
+  `prefecture` = 255, `zipcode` empty, `0` = unset) and the rule that every host chooses the
+  receiver-info set **as a whole** — a Japanese stream never gets a PH code.
 ## 2.4.7 — the clock default follows the stream, and it is the box
 
 - Decision 2026-11-04: the default clock policy is **the box** (`+480`), because that is what the
