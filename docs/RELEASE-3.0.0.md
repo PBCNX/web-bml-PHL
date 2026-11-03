@@ -82,7 +82,7 @@ Never rebase or force-push `main` after a tag exists on it; 3.0.0 must be a plai
 
 ## Verify
 
-- [ ] Fresh clone of `main`: `npm ci && npm run build && npm test` → 213 tests (182 pass, 31 skip).
+- [ ] Fresh clone of `main`: `npm ci && npm run build && npm test` → 226 tests (195 pass, 31 skip).
 - [ ] `git grep -n 'MPLUS1Code\|MPLUS1P\|Kosugi\|PHLatin' -- ':!CHANGELOG.md' ':!dist'` → only historical
       mentions in CHANGELOG (and none in code, docs, tests, examples).
 - [ ] `npm pack --dry-run` in the engine: the tarball's `fonts/` list contains only `BMLPH-*` files.

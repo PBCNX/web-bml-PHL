@@ -9,7 +9,7 @@ kept as-is; this fork adds the changes a receiver needs to run the BML Philippin
 
 | branch | version | what it is |
 |---|---|---|
-| **`main`** | **3.0.0** | the refactored engine — packages, protocol layer, EWBS, both faces, 213 tests |
+| **`main`** | **3.0.0** | the refactored engine — packages, protocol layer, EWBS, both faces, 226 tests |
 | **`legacy/1.1.x`** | **1.1.5** | the previous stable line, kept for rollback |
 | **`master`** | upstream | the fork point; this fork never commits to it |
 
@@ -58,7 +58,7 @@ into its static path and registers them — see [`docs/HOSTING.md`](docs/HOSTING
 npm ci && npm run build && npm test
 ```
 
-213 tests (182 pass; 31 skip without captures). No network. The layout half of the font check lives in
+226 tests (195 pass; 31 skip without captures). No network. The layout half of the font check lives in
 [`test/fixtures/layout-cell-probe.html`](test/fixtures/layout-cell-probe.html) — it must await
 `document.fonts.load()` and be served over HTTP.
 
