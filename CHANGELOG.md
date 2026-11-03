@@ -3,6 +3,14 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 2.6.2 — the area setter leaves a page's zipcode alone
+
+- `setReceiverAreaCode` now writes **nothing** when the area code itself is unchanged. Before, a host that
+  re-asserted the same PH set on every page load would erase a page's own `zipcode` write one load later
+  (TVTest-PHL, 2026-11-04, the "clear only when the set changes" rule). A change of code still replaces
+  the whole set — `regioncode`, `prefecture` 255, `zipcode` empty.
+- HOSTING: call the setter when the receiver-info set changes, not on every page load.
+- Tests: a page-written zipcode survives a same-code call; a changed code still rewrites the set.
 ## 2.6.1 — BIT is forwarded
 
 - `decode_ts` now emits the **`bit`** message (broadcaster information table). The client's

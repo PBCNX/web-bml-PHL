@@ -662,6 +662,14 @@ export class NVRAM {
      * Returns true when something was written.
      */
     public setReceiverAreaCode(code: number | null): boolean {
+        // 2.6.2: when the code itself is unchanged, write nothing at all. The setter represents the
+        // host's decision about the viewer's location; a page is allowed to write its own zipcode, and
+        // re-asserting the same PH set on every page load would erase that write one load later
+        // (TVTest-PHL, 2026-11-04). Only a change of the area code replaces the whole set.
+        const wantedCode = code == null ? null : (code & 0x0fff);
+        if (this.getReceiverAreaCode() === wantedCode) {
+            return false;
+        }
         const set = receiverAreaCodeSet(code);
         const wanted: [string, Uint8Array][] = [
             ["nvram://receiverinfo/regioncode", set.regionCode],

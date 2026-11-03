@@ -220,6 +220,11 @@ can never sit beside a leftover Japanese postal code, and it writes **nothing** 
 already matches, because a host calls it at every session start and NVRAM wear is a real constraint
 (`BML-NV-09`). It returns `true` when something was written.
 
+Call it **when the receiver-info set changes**, not on every page load — and since 2.6.2 a call with
+the same code writes nothing at all, so a page's own `zipcode` write is not erased by a host
+re-asserting the same location. A change of code replaces the whole set, which is the point of the
+convention.
+
 **A host must choose the receiver-info set as a whole.** A Japanese stream never gets a Philippine code
 (not even when no Japanese postal code is configured), and a Philippine stream gets the PH set. If hosts
 disagree, the same page shows a different region on each receiver.
