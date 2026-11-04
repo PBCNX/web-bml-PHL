@@ -8,16 +8,32 @@ const logLevel = {
     log: 0,
     debug: -1,
 };
+/** A console method that writes its channel prefix ahead of the message, like the call sites used to. */
+function withPrefix(write, prefix) {
+    return (...args) => {
+        if (typeof args[0] === "string") {
+            write(prefix + args[0], ...args.slice(1));
+        }
+        else {
+            write(prefix, ...args);
+        }
+    };
+}
 class Logger {
     prefix;
-    error = console.error.bind(console);
-    warn = console.warn.bind(console);
-    info = console.info.bind(console);
-    log = console.log.bind(console);
-    debug = console.debug.bind(console);
+    error;
+    warn;
+    info;
+    log;
+    debug;
     constructor(prefix, level) {
         const l = logLevel[level ?? "log"] ?? logLevel.log;
         this.prefix = `${prefix}`;
+        this.error = withPrefix(console.error.bind(console), this.prefix);
+        this.warn = withPrefix(console.warn.bind(console), this.prefix);
+        this.info = withPrefix(console.info.bind(console), this.prefix);
+        this.log = withPrefix(console.log.bind(console), this.prefix);
+        this.debug = withPrefix(console.debug.bind(console), this.prefix);
         if (l > logLevel.debug) {
             this.debug = () => { };
         }

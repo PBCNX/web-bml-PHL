@@ -1,16 +1,20 @@
-import { NVRAM } from "./nvram";
+import { NVRAM } from "./nvram/nvram";
+import { Profile } from "./profile";
+import { formatModuleRef } from "./format";
 import * as resource from "./resource";
-import * as drcs from "./drcs";
+import * as drcs from "./media/drcs";
 import { Interpreter } from "./interpreter/interpreter";
 import { EventDispatcher, EventQueue } from "./event_queue";
 import { Content } from "./content";
-import { ResponseMessage } from "../server/ws_api";
-import { playRomSound } from "./romsound";
-import { AudioNodeProvider, Indicator, IP, Reg } from "./bml_browser";
-import { decodeEUCJP, encodeEUCJP, stripStringEUCJP } from "./euc_jp";
-import { decodeShiftJIS, encodeShiftJIS, stripStringShiftJIS } from "./shift_jis";
+import { ResponseMessage } from "../protocol/messages";
+import { playRomSound } from "./media/romsound";
+import { AudioNodeProvider, Indicator, IP, Reg } from "./contracts";
+import { decodeEUCJP, encodeEUCJP, stripStringEUCJP } from "./charset/euc_jp";
+import { decodeShiftJIS, encodeShiftJIS, stripStringShiftJIS } from "./charset/shift_jis";
 import { type Logger } from "./util/logger";
 // browser疑似オブジェクト
+
+
 
 export type LockedModuleInfo = [moduleName: string, func: number, status: number];
 export interface Browser {
@@ -119,7 +123,6 @@ export interface Browser {
     getActiveDocument(): string | null;
 
     lockScreen(): number;
-    unlockScreen(): number;
     getBrowserSupport(sProvider: string, functionname: string, ...additionalinfo: string[]): number;
     launchDocument(documentName: string, transitionStyle?: string): number;
     // option
@@ -215,16 +218,16 @@ const apiGroup: Map<string, number> = new Map([
     ["Class.BinaryTable", 1],
     ["Class.CSVTable", 0],
     ["Class.XMLDoc", 0],
-    ["EPG.Basic", 1], //  FIXME: 未実装あり
-    ["EPG.Basic2", 1], // FIXME: 未実装
+    ["EPG.Basic", 1], // FIXME: 未実装あり (the EPG host hooks are declared but not called by the engine)
+    ["EPG.Basic2", 0], // 未実装: the EPG host hooks (contracts.EPG) are declared but not called by the engine
     ["EPG.Ext", 0], // epgTuneToDocument 運用しない
     ["EPG.Group", 0], // grp.., epgXTune 運用しない
     ["EPG.Series", 0], // series... オプション
     ["CC.Stream", 0],
-    ["CC.Control", 1], // FIXME: 未実装
+    ["CC.Control", 0], // 未実装: no caption-display control
     ["Persistent.Ext", 0],
     ["Persistent.Basic", 1],
-    ["Persistent.MediaSupport", 1], // FIXME: setAccessInfoOfPersistentArray
+    ["Persistent.MediaSupport", 0], // 未実装: setAccessInfoOfPersistentArray has no media arm
     ["Storage.Dir.Dest", 0],
     ["Storage.Dir", 0],
     ["Storage.Dir.Ext", 0],
@@ -262,12 +265,12 @@ const apiGroup: Map<string, number> = new Map([
     ["Com.IP.confirmIP", 1],
     ["Com.Common.Delayed", 0],
     ["Com.Line.Prefix", 1],
-    ["Com.Certificate", 1],
+    ["Com.Certificate", 0], // 未実装: isRootCertificateExisting/getRootCertificateInfo are stubs
     ["Ctrl.Basic", 1],
     ["Ctrl.NPT", 1],
     ["Ctrl.Time", 1],
     ["Ctrl.Exec", 0],
-    ["Ctrl.Cache", 1], // FIXME: setCachePriority
+    ["Ctrl.Cache", 0], // 未実装: setCachePriority is a stub
     ["Ctrl.Link", 0],
     ["Ctrl.PgmHyperlink", 0],
     ["Ctrl.Version", 1],
@@ -293,8 +296,8 @@ const apiGroup: Map<string, number> = new Map([
     ["Misc.Peripheral", 0],
     ["Misc.Peripheral.pass", 0],
     ["Misc.Peripheral.Array", 0],
-    ["Bookmark.Basic", 1], // FIXME
-    ["Bookmark.Extended", 1], // FIXME
+    ["Bookmark.Basic", 0], // 未実装: the bookmark APIs are stubs
+    ["Bookmark.Extended", 0], // 未実装: the bookmark APIs are stubs
     ["Bookmark.Resident", 0],
     ["Misc.Basic", 1],
     ["Misc.Ureg", 1],
@@ -306,7 +309,7 @@ const apiGroup: Map<string, number> = new Map([
     ["AITControlledApp.Start", 0],
 
     // TR-B14 第二分冊 
-    ["Bookmark.Basic2", 1], // getBookmarkInfo2
+    ["Bookmark.Basic2", 0], // 未実装: getBookmarkInfo2 is a stub
     ["Ctrl.Status", 1], // getBrowserStatus
     ["Storage.Source", 0], // getContentSource
 ]);
@@ -453,7 +456,7 @@ const cproAPIGroup = new Map([
     ["EPG.Basic", 1],
     ["EPG.Ext", 0],
     ["Persistent.Basic", 1],
-    ["Com.IP.GetType ", 1],
+    ["Com.IP.GetType", 1],
     ["Com.IP", 1],
     ["Com.IP.Transmit", 1],
     ["Ctrl.Basic", 1],
@@ -584,31 +587,43 @@ export class BrowserAPI {
 
     asyncBrowser: AsyncBrowser = {
         loadDRCS: async (DRCS_ref: string): Promise<number> => {
-            this.logger.debug(`${this.logger.prefix}loadDRCS`, DRCS_ref);
-            const res = this.resources.fetchLockedResource(DRCS_ref) ?? await this.resources.fetchResourceAsync(DRCS_ref);
+            this.logger.debug(`loadDRCS`, DRCS_ref);
+            const res = await this.resources.fetchResourceAsync(DRCS_ref);
             if (res?.data == null) {
                 return NaN;
             }
-            this.content.loadDRCS(drcs.loadDRCS(res.data));
-            for (const [id, fontFamily] of [
-                [1, "丸ゴシック"],
-                [2, "角ゴシック"],
-                [3, "太丸ゴシック"],
-            ]) {
-                const glyph = drcs.loadDRCS(res.data, id as number);
-                const { ttf, unicodeCharacters } = drcs.toTTF(glyph);
-                if (unicodeCharacters.length === 0) {
-                    continue;
+            // A malformed DRCS payload must answer NaN like the fetch failure above, not reject:
+            // this is an async browser API and a rejection surfaces as an interpreter error.
+            try {
+                this.content.loadDRCS(drcs.loadDRCS(res.data));
+                for (const [id, fontFamily] of [
+                    [1, "丸ゴシック"],
+                    [2, "角ゴシック"],
+                    [3, "太丸ゴシック"],
+                ]) {
+                    const glyph = drcs.loadDRCS(res.data, id as number);
+                    const { ttf, unicodeCharacters } = drcs.toTTF(glyph);
+                    if (unicodeCharacters.length === 0) {
+                        continue;
+                    }
+                    this.content.addDRCSFont(new FontFace(fontFamily as string, ttf, {
+                        unicodeRange: unicodeCharacters.map(x => "U+" + x.toString(16)).join(","),
+                    }));
                 }
-                this.content.addDRCSFont(new FontFace(fontFamily as string, ttf, {
-                    unicodeRange: unicodeCharacters.map(x => "U+" + x.toString(16)).join(","),
-                }));
+            } catch (e) {
+                this.logger.error(`loadDRCS failed`, DRCS_ref, e);
+                return NaN;
             }
             return 1;
         },
         transmitTextDataOverIP: async (uri: string, text: string, charset: string): Promise<[number, string, string]> => {
-            this.logger.log(`${this.logger.prefix}transmitTextDataOverIP`);
+            this.logger.log(`transmitTextDataOverIP`);
             if (this.ip.transmitTextDataOverIP == null) {
+                return [NaN, "", ""];
+            }
+            // Internet content may only post inside its base URI directory.
+            if (this.resources.isInternetContent && !this.resources.checkBaseURIDirectory(uri)) {
+                this.logger.error(`base URI directory violation (post)`, uri);
                 return [NaN, "", ""];
             }
             function encodeBinary(data: Uint8Array): string {
@@ -624,23 +639,31 @@ export class BrowserAPI {
                 }
                 return encoded;
             }
-            if (charset === "EUC-JP") {
+            const transmit = this.ip.transmitTextDataOverIP;
+            const post = async (data: Uint8Array, decode: (input: Uint8Array) => string): Promise<[number, string, string]> => {
                 this.indicator?.setNetworkingPostStatus(true);
-                const { resultCode, statusCode, response } = await this.ip.transmitTextDataOverIP(uri, new TextEncoder().encode("Denbun=" + encodeBinary(encodeEUCJP(text))));
-                this.indicator?.setNetworkingPostStatus(false);
-                return [resultCode, statusCode, decodeEUCJP(response)];
+                try {
+                    const res = await transmit(uri, new TextEncoder().encode("Denbun=" + encodeBinary(data)));
+                    // BML result code: 1 when the request was answered, NaN when the transport failed.
+                    return [1, String(res.status), decode(res.body)];
+                } catch (e) {
+                    this.logger.error(`transmitTextDataOverIP failed`, uri, e);
+                    return [NaN, "", ""];
+                } finally {
+                    this.indicator?.setNetworkingPostStatus(false);
+                }
+            };
+            if (charset === "EUC-JP") {
+                return await post(encodeEUCJP(text), decodeEUCJP);
             } else if (charset === "Shift_JIS") {
                 // Cプロファイル
-                this.indicator?.setNetworkingPostStatus(true);
-                const { resultCode, statusCode, response } = await this.ip.transmitTextDataOverIP(uri, new TextEncoder().encode("Denbun=" + encodeBinary(encodeShiftJIS(text))));
-                this.indicator?.setNetworkingPostStatus(false);
-                return [resultCode, statusCode, decodeShiftJIS(response)];
+                return await post(encodeShiftJIS(text), decodeShiftJIS);
             } else {
                 return [NaN, "", ""];
             }
         },
         confirmIPNetwork: async (destination: string, confirmType: number, timeout?: number): Promise<[boolean, string | null, number | null] | null> => {
-            this.logger.log(`${this.logger.prefix}confirmIPNetwork`);
+            this.logger.log(`confirmIPNetwork`);
             if (this.ip.confirmIPNetwork == null) {
                 return null;
             }
@@ -652,9 +675,9 @@ export class BrowserAPI {
         },
         sleep: async (interval: number): Promise<number | null> => {
             return new Promise<number | null>((resolve) => {
-                this.logger.debug(`${this.logger.prefix}SLEEP `, interval);
+                this.logger.debug(`SLEEP `, interval);
                 setTimeout(() => {
-                    this.logger.debug(`${this.logger.prefix}END SLEEP `, interval);
+                    this.logger.debug(`END SLEEP `, interval);
                     resolve(1);
                 }, interval);
             });
@@ -691,7 +714,7 @@ export class BrowserAPI {
 
     public setGreg(index: number, value: string) {
         if (index >= 0 && index < this.browser.Greg.length) {
-            this.greg.setReg(index, this.resources.profile === resource.Profile.TrProfileC ? stripStringShiftJIS(value, 256) : stripStringEUCJP(value, 256));
+            this.greg.setReg(index, this.resources.profile === Profile.TrProfileC ? stripStringShiftJIS(value, 256) : stripStringEUCJP(value, 256));
         }
     }
 
@@ -705,7 +728,7 @@ export class BrowserAPI {
 
     public setUreg(index: number, value: string) {
         if (index >= 0 && index < this.browser.Ureg.length) {
-            this.ureg.setReg(index, this.resources.profile === resource.Profile.TrProfileC ? stripStringShiftJIS(value, 256) : stripStringEUCJP(value, 256));
+            this.ureg.setReg(index, this.resources.profile === Profile.TrProfileC ? stripStringShiftJIS(value, 256) : stripStringEUCJP(value, 256));
         }
     }
 
@@ -714,75 +737,75 @@ export class BrowserAPI {
         Greg: [...new Array(64)].map(_ => ""),
         epgGetEventStartTime: (event_ref: string): Date | null => {
             if (event_ref == this.resources.eventURI) {
-                this.logger.debug(`${this.logger.prefix}epgGetEventStartTime`, event_ref);
+                this.logger.debug(`epgGetEventStartTime`, event_ref);
                 const time = this.resources.startTimeUnixMillis;
                 if (time == null) {
                     return null;
                 }
                 return new Date(time);
             }
-            this.logger.error(`${this.logger.prefix}epgGetEventStartTime: not implemented`, event_ref, this.resources.eventId);
+            this.logger.error(`epgGetEventStartTime: not implemented`, event_ref, this.resources.eventId);
             return null;
         },
         epgGetEventDuration: (event_ref: string): number => {
             if (event_ref == this.resources.eventURI) {
-                this.logger.debug(`${this.logger.prefix}epgGetEventDuration`, event_ref);
+                this.logger.debug(`epgGetEventDuration`, event_ref);
                 return this.resources.durationSeconds ?? NaN;
             }
-            this.logger.error(`${this.logger.prefix}epgGetEventDuration`, event_ref);
+            this.logger.error(`epgGetEventDuration`, event_ref);
             return NaN;
         },
+        // The engine does not call the host's contracts.EPG hooks: this API reports "not performed"
+        // rather than pretending to have tuned. Wiring it needs a service/component reference parse
+        // and a transition, which is a host-side decision this engine has not taken.
         epgTune: (service_ref: string): number => {
-            this.logger.log(`${this.logger.prefix}epgTune stub`, { service_ref });
+            this.logger.debug(`epgTune stub`, { service_ref });
             return NaN;
         },
         epgTuneToComponent: (component_ref: string): number => {
-            this.logger.log(`${this.logger.prefix}epgTuneToComponent stub`, { component_ref });
+            this.logger.debug(`epgTuneToComponent stub`, { component_ref });
             return NaN;
         },
         epgIsReserved: (event_ref: string): number => {
-            this.logger.log(`${this.logger.prefix}epgIsReserved stub`, { event_ref });
+            this.logger.debug(`epgIsReserved stub`, { event_ref });
             return NaN;
         },
         epgReserve: (event_ref: string, startTime?: Date): number => {
-            this.logger.log(`${this.logger.prefix}epgReserve stub`, { event_ref, startTime });
+            this.logger.debug(`epgReserve stub`, { event_ref, startTime });
             return NaN;
         },
         epgCancelReservation: (event_ref: string): number => {
-            this.logger.log(`${this.logger.prefix}epgCancelReservation stub`, { event_ref });
+            this.logger.debug(`epgCancelReservation stub`, { event_ref });
             return NaN;
         },
         epgRecIsReserved: (event_ref: string, startTime?: Date): number => {
-            this.logger.log(`${this.logger.prefix}epgRecIsReserved stub`, { event_ref, startTime });
+            this.logger.debug(`epgRecIsReserved stub`, { event_ref, startTime });
             return NaN;
         },
         epgRecReserve: (event_ref: string, startTime?: Date): number => {
-            this.logger.log(`${this.logger.prefix}epgRecReserve stub`, { event_ref, startTime });
+            this.logger.debug(`epgRecReserve stub`, { event_ref, startTime });
             return NaN;
         },
         epgRecCancelReservation: (event_ref: string): number => {
-            this.logger.log(`${this.logger.prefix}epgRecCancelReservation stub`, { event_ref });
+            this.logger.debug(`epgRecCancelReservation stub`, { event_ref });
             return NaN;
         },
         setCCDisplayStatus: (language: number, status: boolean): number => {
-            this.logger.log(`${this.logger.prefix}setCCDisplayStatus stub`, { language, status });
-            return language === 1 ? 1 : NaN;
+            this.logger.debug(`setCCDisplayStatus stub`, { language, status });
+            // CC.Control is not advertised, so no language has a display status to set.
+            return NaN;
         },
         getCCDisplayStatus: (language: number): number => {
-            this.logger.log(`${this.logger.prefix}getCCDisplayStatus stub`, { language });
-            if (language === 1) {
-                return 1;
-            }
+            this.logger.debug(`getCCDisplayStatus stub`, { language });
+            // No caption display exists, so every valid language answers "off" rather than "on".
             if (language >= 1 && language <= 8) {
                 return 0;
             }
             return NaN;
         },
         getCCLanguageStatus: (language: number): number => {
-            this.logger.log(`${this.logger.prefix}getCCLanguageStatus stub`, { language });
-            if (language === 1) {
-                return 1;
-            }
+            this.logger.debug(`getCCLanguageStatus stub`, { language });
+            // CC.Control is not advertised; no language can be "available" when no display exists.
             if (language >= 1 && language <= 8) {
                 return 0;
             }
@@ -790,35 +813,35 @@ export class BrowserAPI {
 
         },
         writeBookmarkArray: (filename: string, title: string, dstURI: string, expire_str: string, bmType: string, linkMedia: string, usageFlag: string, extendedStructure?: string, extendedData?: any[]): number => {
-            this.logger.log(`${this.logger.prefix}writeBookmarkArray stub`, { filename, title, dstURI, expire_str, bmType, linkMedia, usageFlag, extendedStructure, extendedData });
+            this.logger.debug(`writeBookmarkArray stub`, { filename, title, dstURI, expire_str, bmType, linkMedia, usageFlag, extendedStructure, extendedData });
             return NaN;
         },
         readBookmarkArray: (filename: string, bmType?: string, extendedStructure?: string): any[] | null => {
-            this.logger.log(`${this.logger.prefix}readBookmarkArray stub`, { filename, bmType, extendedStructure });
+            this.logger.debug(`readBookmarkArray stub`, { filename, bmType, extendedStructure });
             return null;
         },
         deleteBookmark: (filename: string): number => {
-            this.logger.log(`${this.logger.prefix}deleteBookmark stub`, { filename });
+            this.logger.debug(`deleteBookmark stub`, { filename });
             return NaN;
         },
         lockBookmark: (filename: string): number => {
-            this.logger.log(`${this.logger.prefix}lockBookmark stub`, { filename });
+            this.logger.debug(`lockBookmark stub`, { filename });
             return NaN;
         },
         unlockBookmark: (filename: string): number => {
-            this.logger.log(`${this.logger.prefix}unlockBookmark stub`, { filename });
+            this.logger.debug(`unlockBookmark stub`, { filename });
             return NaN;
         },
         getBookmarkInfo: (): [number, number, string] | null => {
-            this.logger.log(`${this.logger.prefix}getBookmarkInfo stub`);
+            this.logger.debug(`getBookmarkInfo stub`);
             return null;
         },
         getBookmarkInfo2: (region_name: string): [number, number, string] | null => {
-            this.logger.log(`${this.logger.prefix}getBookmarkInfo2 stub`, { region_name });
+            this.logger.debug(`getBookmarkInfo2 stub`, { region_name });
             return null;
         },
         setCurrentDateMode: (time_mode: number): number => {
-            this.logger.debug(`${this.logger.prefix}setCurrentDateMode`, time_mode);
+            this.logger.debug(`setCurrentDateMode`, time_mode);
             if (time_mode == 0) {
                 this.content.currentDateMode = 0;
             } else if (time_mode == 1) {
@@ -829,7 +852,7 @@ export class BrowserAPI {
             return 1; // 成功
         },
         getProgramRelativeTime: (): number => {
-            this.logger.debug(`${this.logger.prefix}getProgramRelativeTime`);
+            this.logger.debug(`getProgramRelativeTime`);
             const ct = this.resources.currentTimeUnixMillis;
             const st = this.resources.startTimeUnixMillis;
             if (ct == null || st == null) {
@@ -839,7 +862,7 @@ export class BrowserAPI {
             }
         },
         isBeingBroadcast: (event_ref: string): boolean => {
-            this.logger.log(`${this.logger.prefix}isBeingBroadcast stub`, { event_ref });
+            this.logger.debug(`isBeingBroadcast stub`, { event_ref });
             return false;
         },
         subDate(target: Date, base: Date, unit: number) {
@@ -894,90 +917,116 @@ export class BrowserAPI {
             return number.toLocaleString("en-US");
         },
         unlockModuleOnMemory: (module: string | null | undefined): number => {
-            this.logger.debug(`${this.logger.prefix}unlockModuleOnMemory`, module);
+            this.logger.debug(`unlockModuleOnMemory`, module);
             const { componentId, moduleId } = this.resources.parseURLEx(module);
             if (componentId == null || moduleId == null) {
+                this.resources.diagnostics.lock("unlockModuleOnMemory", module ?? null, null, NaN, "invalid-reference");
                 return NaN;
             }
-            return this.resources.unlockModule(componentId, moduleId, "lockModuleOnMemory") ? 1 : NaN;
+            const unlocked = this.resources.unlockModule(componentId, moduleId, "lockModuleOnMemory");
+            this.resources.diagnostics.lock("unlockModuleOnMemory", module ?? null, formatModuleRef(componentId, moduleId), unlocked ? 1 : NaN, unlocked ? "unlocked" : "unlock-refused");
+            return unlocked ? 1 : NaN;
         },
         setCachePriority: (module: string, priority: number): number => {
-            this.logger.log(`${this.logger.prefix}setCachePriority: stub`, { module, priority });
-            return 1;
+            // Ctrl.Cache is not advertised (getBrowserSupport answers 0), so this must not claim
+            // success: a page that checks and gets 1 would believe the priority was applied.
+            this.logger.debug(`setCachePriority: stub`, { module, priority });
+            return NaN;
         },
         unlockModuleOnMemoryEx: (module: string | null | undefined): number => {
-            this.logger.debug(`${this.logger.prefix}unlockModuleOnMemoryEx`, module);
+            this.logger.debug(`unlockModuleOnMemoryEx`, module);
             const { componentId, moduleId } = this.resources.parseURLEx(module);
             if (componentId == null || moduleId == null) {
+                this.resources.diagnostics.lock("unlockModuleOnMemoryEx", module ?? null, null, NaN, "invalid-reference");
                 return NaN;
             }
-            return this.resources.unlockModule(componentId, moduleId, "lockModuleOnMemoryEx") ? 1 : NaN;
+            const unlocked = this.resources.unlockModule(componentId, moduleId, "lockModuleOnMemoryEx");
+            this.resources.diagnostics.lock("unlockModuleOnMemoryEx", module ?? null, formatModuleRef(componentId, moduleId), unlocked ? 1 : NaN, unlocked ? "unlocked" : "unlock-refused");
+            return unlocked ? 1 : NaN;
         },
         unlockAllModulesOnMemory: (): number => {
-            this.logger.debug(`${this.logger.prefix}unlockAllModulesOnMemory`);
+            this.logger.debug(`unlockAllModulesOnMemory`);
             this.resources.unlockModules();
+            this.resources.diagnostics.lock("unlockAllModulesOnMemory", null, null, 1, "all-unlocked");
             return 1; // NaN => fail
         },
         lockModuleOnMemory: (module: string | null | undefined): number => {
-            this.logger.debug(`${this.logger.prefix}lockModuleOnMemory`, module);
+            this.logger.debug(`lockModuleOnMemory`, module);
+            const diagnostics = this.resources.diagnostics;
             const { componentId, moduleId } = this.resources.parseURLEx(module);
             if (componentId == null || moduleId == null || module == null) {
+                diagnostics.lock("lockModuleOnMemory", module ?? null, null, NaN, "invalid-reference");
                 return NaN;
             }
+            const normalized = formatModuleRef(componentId, moduleId);
             // lockModuleOnMemoryExでロックされているモジュールをlockModuleOnMemoryでロックできない
             if (this.resources.getModuleLockedBy(componentId, moduleId) === "lockModuleOnMemoryEx") {
+                diagnostics.lock("lockModuleOnMemory", module, normalized, NaN, "refused-other-lock");
                 return NaN;
             }
             if (!this.resources.getPMTComponent(componentId)) {
-                this.logger.error(`${this.logger.prefix}lockModuleOnMemory: component does not exist in PMT`, module);
+                this.logger.error(`lockModuleOnMemory: component does not exist in PMT`, module);
+                diagnostics.lock("lockModuleOnMemory", module, normalized, -1, "no-pmt-component");
                 return -1;
             }
             if (this.resources.componentExistsInDownloadInfo(componentId)) {
                 if (!this.resources.moduleExistsInDownloadInfo(componentId, moduleId)) {
-                    this.logger.error(`${this.logger.prefix}lockModuleOnMemory: component does not exist in DII`, module);
+                    this.logger.error(`lockModuleOnMemory: component does not exist in DII`, module);
+                    diagnostics.lock("lockModuleOnMemory", module, normalized, -1, "no-dii-module");
                     return -1;
                 }
             }
             const cachedModule = this.resources.lockCachedModule(componentId, moduleId, "lockModuleOnMemory");
             if (!cachedModule) {
-                this.logger.log(`${this.logger.prefix}lockModuleOnMemory: module not cached`, module);
+                this.logger.log(`lockModuleOnMemory: module not cached`, module);
+                const record = diagnostics.lock("lockModuleOnMemory", module, normalized, 1, "requested");
                 this.resources.fetchResourceAsync(module, "lockModuleOnMemory").then(() => {
                     const cachedModule = this.resources.lockCachedModule(componentId, moduleId, "lockModuleOnMemory");
-                    if (cachedModule == null) {
+                    if (!cachedModule) {
                         // 発生しない?
+                        diagnostics.settleLock(record, "failed-after-request");
                         return;
                     }
+                    diagnostics.settleLock(record, "locked");
                     this.eventDispatcher.dispatchModuleLockedEvent(module, false, 0);
                 });
                 return 1;
             }
             // イベントハンドラではモジュール名の大文字小文字がそのままである必要がある?
+            diagnostics.lock("lockModuleOnMemory", module, normalized, 1, "locked");
             this.eventDispatcher.dispatchModuleLockedEvent(module, false, 0);
             return 1;
         },
         lockModuleOnMemoryEx: (module: string | null | undefined): number => {
-            this.logger.debug(`${this.logger.prefix}lockModuleOnMemoryEx`, module);
+            this.logger.debug(`lockModuleOnMemoryEx`, module);
+            const diagnostics = this.resources.diagnostics;
             const { componentId, moduleId } = this.resources.parseURLEx(module);
             if (componentId == null || moduleId == null || module == null) {
+                diagnostics.lock("lockModuleOnMemoryEx", module ?? null, null, NaN, "invalid-reference");
                 return NaN;
             }
-            if (this.resources.profile !== resource.Profile.TrProfileC) {
+            const normalized = formatModuleRef(componentId, moduleId);
+            if (this.resources.profile !== Profile.TrProfileC) {
                 // TR-B14 第二分冊 5.12.6.9 (6) 参照
                 if (componentId !== 0x40 && componentId !== 0x50 && componentId !== 0x60) {
+                    diagnostics.lock("lockModuleOnMemoryEx", module, normalized, NaN, "refused-component");
                     return NaN;
                 }
             }
             // lockModuleOnMemoryでロックされているモジュールをlockModuleOnMemoryExでロックできない
             if (this.resources.getModuleLockedBy(componentId, moduleId) === "lockModuleOnMemory") {
+                diagnostics.lock("lockModuleOnMemoryEx", module, normalized, NaN, "refused-other-lock");
                 return NaN;
             }
             if (!this.resources.getPMTComponent(componentId)) {
-                this.logger.error(`${this.logger.prefix}lockModuleOnMemoryEx: component does not exist in PMT`, module);
+                this.logger.error(`lockModuleOnMemoryEx: component does not exist in PMT`, module);
+                diagnostics.lock("lockModuleOnMemoryEx", module, normalized, -3, "no-pmt-component");
                 return -3;
             }
             if (this.resources.componentExistsInDownloadInfo(componentId)) {
                 if (!this.resources.moduleExistsInDownloadInfo(componentId, moduleId)) {
-                    this.logger.error(`${this.logger.prefix}lockModuleOnMemoryEx: component does not exist in DII`, module);
+                    this.logger.error(`lockModuleOnMemoryEx: component does not exist in DII`, module);
+                    diagnostics.lock("lockModuleOnMemoryEx", module, normalized, 1, "no-dii-module");
                     this.eventDispatcher.dispatchModuleLockedEvent(module, true, -2);
                     return 1;
                 }
@@ -985,35 +1034,35 @@ export class BrowserAPI {
             const cachedModule = this.resources.lockCachedModule(componentId, moduleId, "lockModuleOnMemoryEx");
             if (!cachedModule) {
                 const dataEventId = this.resources.getDownloadComponentInfo(componentId)?.dataEventId;
-                this.logger.log(`${this.logger.prefix}lockModuleOnMemoryEx: module not cached`, module);
+                this.logger.log(`lockModuleOnMemoryEx: module not cached`, module);
+                const record = diagnostics.lock("lockModuleOnMemoryEx", module, normalized, 1, "requested");
                 this.resources.fetchResourceAsync(module, "lockModuleOnMemoryEx").then(() => {
                     if (dataEventId != null) {
                         const eid = this.resources.getDownloadComponentInfo(componentId)?.dataEventId;
                         if (eid != null && eid !== dataEventId) {
                             // ロック対象のESのデータイベントが更新された場合 -1 TR-B14 第二分冊 5.12.6.9 (6)
+                            diagnostics.settleLock(record, "failed-after-request");
                             this.eventDispatcher.dispatchModuleLockedEvent(module, true, -1);
                             return;
                         }
                     }
                     const cachedModule = this.resources.lockCachedModule(componentId, moduleId, "lockModuleOnMemoryEx");
-                    this.eventDispatcher.dispatchModuleLockedEvent(module, true, cachedModule == null ? -2 : 0);
+                    diagnostics.settleLock(record, cachedModule ? "locked" : "failed-after-request");
+                    this.eventDispatcher.dispatchModuleLockedEvent(module, true, cachedModule ? 0 : -2);
                 });
                 return 1;
             }
             // イベントハンドラではモジュール名の大文字小文字がそのままである必要がある?
+            diagnostics.lock("lockModuleOnMemoryEx", module, normalized, 1, "locked");
             this.eventDispatcher.dispatchModuleLockedEvent(module, true, 0);
             return 1;
         },
         lockScreen: (): number => {
-            this.logger.debug(`${this.logger.prefix}lockScreen`);
-            return 1;
-        },
-        unlockScreen: (): number => {
-            this.logger.debug(`${this.logger.prefix}unlockScreen`);
+            this.logger.debug(`lockScreen`);
             return 1;
         },
         getBrowserSupport: (sProvider: string, functionname: string, ...additionalinfoList: string[]): number => {
-            this.logger.log(`${this.logger.prefix}getBrowserSupport`, sProvider, functionname, ...additionalinfoList);
+            this.logger.log(`getBrowserSupport`, sProvider, functionname, ...additionalinfoList);
             const additionalinfo: string | undefined = additionalinfoList[0] ?? undefined;
             const additionalinfo2: string | undefined = additionalinfoList[1] ?? undefined;
             const additionalinfo3: string | undefined = additionalinfoList[2] ?? undefined;
@@ -1034,8 +1083,6 @@ export class BrowserAPI {
                 } else if (functionname === "BXMLversion") {
                     // B-XML
                     return 0;
-                } else if (functionname === "MediaDecoder") {
-                    // TODO
                 } else if (functionname === "Storage" && additionalinfo === "cachesize") {
                     // filesizeのキャッシュを備えているかどうか
                     const filesize = Number(additionalinfo2);
@@ -1051,12 +1098,17 @@ export class BrowserAPI {
                 }
                 const f = arib.get(functionname);
                 if (f == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport functionname`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport functionname`, sProvider, functionname, ...additionalinfoList);
                     return 0;
+                }
+                // A few capabilities are answered by a constant (0/1) rather than a sub-key table;
+                // calling .get() on those threw a TypeError straight into the page.
+                if (typeof f === "number") {
+                    return f;
                 }
                 const a1 = f.get(additionalinfo);
                 if (a1 == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport additionalinfo`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport additionalinfo`, sProvider, functionname, ...additionalinfoList);
                     return 0;
                 }
                 if (typeof a1 === "number") {
@@ -1064,7 +1116,7 @@ export class BrowserAPI {
                 }
                 const a2 = a1.get(additionalinfo2);
                 if (a2 == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport additionalinfo2`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport additionalinfo2`, sProvider, functionname, ...additionalinfoList);
                     return 0;
                 }
                 if (typeof a2 === "number") {
@@ -1072,19 +1124,19 @@ export class BrowserAPI {
                 }
                 const a3 = a2.get(additionalinfo3);
                 if (a3 == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport additionalinfo2`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport additionalinfo2`, sProvider, functionname, ...additionalinfoList);
                     return 0;
                 }
                 return a3;
             } else if (sProvider === "BPA") {
                 const f = bpa.get(functionname);
                 if (f == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport functionname`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport functionname`, sProvider, functionname, ...additionalinfoList);
                     return 0;
                 }
                 const a1 = f.get(additionalinfo);
                 if (a1 == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport additionalinfo`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport additionalinfo`, sProvider, functionname, ...additionalinfoList);
                     return 0;
                 }
                 return a1;
@@ -1104,8 +1156,6 @@ export class BrowserAPI {
                         }
                         return 0;
                     }
-                } else if (functionname === "MediaDecoder") {
-                    // TODO
                 } else if (functionname === "Storage" && additionalinfo === "cachesize") {
                     // filesizeのキャッシュを備えているかどうか
                     const filesize = Number(additionalinfo2);
@@ -1119,12 +1169,16 @@ export class BrowserAPI {
                 }
                 const f = dpaCpro.get(functionname);
                 if (f == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport functionname`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport functionname`, sProvider, functionname, ...additionalinfoList);
                     return 0;
+                }
+                // Same constant-answer case as the `arib` table above.
+                if (typeof f === "number") {
+                    return f;
                 }
                 const a1 = f.get(additionalinfo);
                 if (a1 == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport additionalinfo`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport additionalinfo`, sProvider, functionname, ...additionalinfoList);
                     return 0;
                 }
                 if (typeof a1 === "number") {
@@ -1132,7 +1186,7 @@ export class BrowserAPI {
                 }
                 const a2 = a1.get(additionalinfo2);
                 if (a2 == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport additionalinfo2`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport additionalinfo2`, sProvider, functionname, ...additionalinfoList);
                     return 0;
                 }
                 if (typeof a2 === "number") {
@@ -1140,16 +1194,16 @@ export class BrowserAPI {
                 }
                 const a3 = a2.get(additionalinfo3);
                 if (a3 == null) {
-                    this.logger.error(`${this.logger.prefix}unknown getBrowserSupport additionalinfo2`, sProvider, functionname, ...additionalinfoList);
+                    this.logger.error(`unknown getBrowserSupport additionalinfo2`, sProvider, functionname, ...additionalinfoList);
                     return 0;
                 }
                 return a3;
             }
-            this.logger.error(`${this.logger.prefix}unknown getBrowserSupport`, sProvider, functionname, ...additionalinfoList);
+            this.logger.error(`unknown getBrowserSupport`, sProvider, functionname, ...additionalinfoList);
             return 0;
         },
         getBrowserStatus: (sProvider: string, statusname: string, additionalinfo: string): number => {
-            this.logger.log(`${this.logger.prefix}getBrowserStatus`, sProvider, statusname, additionalinfo);
+            this.logger.log(`getBrowserStatus`, sProvider, statusname, additionalinfo);
             if (sProvider === "TerrP" || sProvider === "DPA" /* Cプロファイル */) {
                 if (statusname === "IRDState") {
                     if (additionalinfo === "Link") {
@@ -1163,27 +1217,31 @@ export class BrowserAPI {
                     }
                 }
             }
-            this.logger.error(`${this.logger.prefix}unknown getBrowserStatus`, sProvider, statusname, additionalinfo);
+            this.logger.error(`unknown getBrowserStatus`, sProvider, statusname, additionalinfo);
             return NaN;
         },
         launchDocument: (documentName: string, transitionStyle?: string): number => {
-            this.logger.log(`${this.logger.prefix}%claunchDocument`, "font-size: 1.5em", documentName, transitionStyle);
-            this.content.launchDocument(documentName);
-            this.interpreter.destroyStack();
-            throw new Error("unreachable!!");
+            this.logger.log(`launchDocument`, documentName, transitionStyle);
+            this.content.launchDocument(documentName).catch((e) => this.logger.error(`launchDocument failed`, documentName, e));
+            // Reached on every launch/quit: this throw is how the page script is aborted, not an
+            // impossible branch.
+            throw new Error("document transition aborted the running script");
         },
         quitDocument: (): number => {
-            this.logger.log(`${this.logger.prefix}%cquitDocument`, "font-size: 1.5em");
-            this.content.quitDocument();
-            this.interpreter.destroyStack();
-            throw new Error("unreachable!!");
+            this.logger.log(`quitDocument`);
+            // Fire-and-forget like launchDocument beside it, but an unhandled rejection here was
+            // invisible: nothing else records a failed quit.
+            this.content.quitDocument().catch((e) => this.logger.error(`quitDocument failed`, e));
+            // Reached on every launch/quit: this throw is how the page script is aborted, not an
+            // impossible branch.
+            throw new Error("document transition aborted the running script");
         },
         reloadActiveDocument: (): number => {
-            this.logger.debug(`${this.logger.prefix}reloadActiveDocument`);
+            this.logger.debug(`reloadActiveDocument`);
             return this.browser.launchDocument(this.browser.getActiveDocument()!);
         },
         launchExApp: (uriname: string, MIME_type: string, ...Ex_info: string[]): number => {
-            this.logger.log(`${this.logger.prefix}launchExApp`, { uriname, MIME_type, Ex_info });
+            this.logger.log(`launchExApp`, { uriname, MIME_type, Ex_info });
             return NaN;
         },
         getFreeContentsMemory: (number_of_resource?: number): number => {
@@ -1216,23 +1274,23 @@ export class BrowserAPI {
             return 0;
         },
         readPersistentArray: (filename: string, structure: string): any[] | null => {
-            this.logger.debug(`${this.logger.prefix}readPersistentArray`, filename, structure);
+            this.logger.debug(`readPersistentArray`, filename, structure);
             return this.nvram.readPersistentArray(filename, structure);
         },
         writePersistentArray: (filename: string, structure: string, data: any[], period?: Date): number => {
-            this.logger.debug(`${this.logger.prefix}writePersistentArray`, filename, structure, data, period);
+            this.logger.debug(`writePersistentArray`, filename, structure, data, period);
             return this.nvram.writePersistentArray(filename, structure, data, period);
         },
         checkAccessInfoOfPersistentArray: (filename: string): number => {
-            this.logger.debug(`${this.logger.prefix}checkAccessInfoOfPersistentArray`, filename);
+            this.logger.debug(`checkAccessInfoOfPersistentArray`, filename);
             return this.nvram.checkAccessInfoOfPersistentArray(filename);
         },
         writePersistentArrayWithAccessCheck: (filename: string, structure: string, data: any[], period?: Date): number => {
-            this.logger.debug(`${this.logger.prefix}writePersistentArrayWithAccessCheck`, filename, structure, data, period);
+            this.logger.debug(`writePersistentArrayWithAccessCheck`, filename, structure, data, period);
             return this.nvram.writePersistentArrayWithAccessCheck(filename, structure, data, period);
         },
         readPersistentArrayWithAccessCheck: (filename: string, structure: string): any[] | null => {
-            this.logger.debug(`${this.logger.prefix}readPersistentArrayWithAccessCheck`, filename, structure);
+            this.logger.debug(`readPersistentArrayWithAccessCheck`, filename, structure);
             return this.nvram.readPersistentArrayWithAccessCheck(filename, structure);
         },
         connect: (tel: string, ...args: [hostNo: string, bProvider: boolean, speed: number, timeout: number] | [bProvider: boolean, speed: number, timeout: number]): number => {
@@ -1265,11 +1323,11 @@ export class BrowserAPI {
         getResidentAppVersion: (appName: string): any[] | null => {
             // Cプロファイルでもこの関数は運用される
             // ただしappNameにComBrowserは指定しない (TR-B14 第三分冊 7.10.6)
-            this.logger.debug(`${this.logger.prefix}getResidentAppVersion`, appName);
+            this.logger.debug(`getResidentAppVersion`, appName);
             return null;
         },
         getLockedModuleInfo: (): LockedModuleInfo[] | null => {
-            this.logger.debug(`${this.logger.prefix}getLockedModuleInfo`);
+            this.logger.debug(`getLockedModuleInfo`);
             const l: LockedModuleInfo[] = [];
             for (const { module, isEx, requesting } of this.resources.getLockedModules()) {
                 l.push([module, isEx ? 2 : 1, requesting ? 2 : 1]);
@@ -1282,10 +1340,10 @@ export class BrowserAPI {
                 return NaN;
             }
             if (this.resources.getPMTComponent(componentId)) {
-                this.logger.debug(`${this.logger.prefix}detectComponent`, componentId, true);
+                this.logger.debug(`detectComponent`, componentId, true);
                 return 1;
             } else {
-                this.logger.debug(`${this.logger.prefix}detectComponent`, componentId, false);
+                this.logger.debug(`detectComponent`, componentId, false);
                 return 0;
             }
         },
@@ -1313,17 +1371,17 @@ export class BrowserAPI {
             } else if (type == 9) {
                 return toHex(this.resources.networkId, 4);
             }
-            this.logger.error(`${this.logger.prefix}getProgramID`, type);
+            this.logger.error(`getProgramID`, type);
             return null;
         },
         playRomSound: (soundID: string): number => {
-            this.logger.log(`${this.logger.prefix}playRomSound`, soundID);
+            this.logger.log(`playRomSound`, soundID);
             const groups = /^romsound:\/\/(?<soundID>\d+)$/.exec(soundID)?.groups;
             // 名前空間に一致しない識別子は再生せず失敗を返す
             if (groups == null) {
                 return NaN;
             }
-            return playRomSound(Number.parseInt(groups.soundID), this.audioNodeProvider.getAudioDestinationNode()) ? 1 : NaN;
+            return playRomSound(Number.parseInt(groups.soundID), this.audioNodeProvider.getAudioDestinationNode(), this.resources.audioOutput) ? 1 : NaN;
         },
         getBrowserVersion(): string[] {
             return ["BMLHTML", "BMLHTML", "001", "000"];
@@ -1335,13 +1393,9 @@ export class BrowserAPI {
             return -1;
         },
         getIRDID: (type: number): string | null => {
-            this.logger.log(`${this.logger.prefix}getIRDID`, type);
-            if (type === 5) {
-                // 20桁のB-CAS番号のうち後ろ5桁のチェックサムを除去したもの
-                // const cardID = "000012345678901";
-                // 16進表記に変換 
-                // return BigInt(cardID.substring(0, 20 - 5)).toString(16).padStart(12, "0");
-            }
+            this.logger.debug(`getIRDID`, type);
+            // 5 (B-CAS card id) would be the 20-digit card number without its 5-char checksum,
+            // converted to hex; no receiver here exposes one, so every type returns null.
             return null;
         },
         setISPParams: (ispname: string, tel: string, bProvider: boolean, uid: string, passwd: string, nameServer1: string, nameServer2: string, softCompression: boolean, headerCompression: boolean, idleTime: number, status: number, lineType?: number): number => {
@@ -1360,11 +1414,11 @@ export class BrowserAPI {
             return NaN;
         },
         isIPConnected: (): number => {
-            this.logger.log(`${this.logger.prefix}isIPConnected`);
+            this.logger.debug(`isIPConnected`);
             return this.ip.isIPConnected?.() ?? 0;
         },
         getConnectionType: (): number => {
-            this.logger.log(`${this.logger.prefix}getConnectionType`);
+            this.logger.debug(`getConnectionType`);
             return this.ip.getConnectionType?.() ?? 403; // Ethernet DHCP
         },
         sendTextMail(subject: string, body: string, toAddress: string, ...ccAddress: string[]): [number, number] {
@@ -1380,15 +1434,15 @@ export class BrowserAPI {
             return ["", "", "", "", ""];
         },
         vote: (tel: string, timeout: number): number => {
-            this.logger.log(`${this.logger.prefix}vote`, { tel, timeout });
+            this.logger.log(`vote`, { tel, timeout });
             return NaN;
         },
         isRootCertificateExisting: (root_certificate_type: number, root_certificate_id: number, root_certificate_version?: number): number => {
-            this.logger.log(`${this.logger.prefix}isRootCertificateExisting stub`, { root_certificate_type, root_certificate_id, root_certificate_version });
+            this.logger.debug(`isRootCertificateExisting stub`, { root_certificate_type, root_certificate_id, root_certificate_version });
             return 1;
         },
         getRootCertificateInfo: (): any[] | null => {
-            this.logger.log(`${this.logger.prefix}getRootCertificateInfo stub`);
+            this.logger.debug(`getRootCertificateInfo stub`);
             return [];
         },
         setInterval: (evalCode: string, msec: number, iteration: number): number => {
@@ -1402,24 +1456,24 @@ export class BrowserAPI {
                 });
                 this.eventQueue.processEventQueue();
             }, msec);
-            this.logger.debug(`${this.logger.prefix}setInterval`, evalCode, msec, iteration, handle);
+            this.logger.debug(`setInterval`, evalCode, msec, iteration, handle);
             return handle;
         },
         clearTimer: (timerID: number): number => {
-            this.logger.debug(`${this.logger.prefix}clearTimer`, timerID);
+            this.logger.debug(`clearTimer`, timerID);
             return this.eventQueue.clearInterval(timerID) ? 1 : NaN;
         },
         pauseTimer: (timerID: number): number => {
-            this.logger.debug(`${this.logger.prefix}pauseTimer`, timerID);
+            this.logger.debug(`pauseTimer`, timerID);
             return this.eventQueue.pauseTimer(timerID) ? 1 : NaN;
         },
         resumeTimer: (timerID: number): number => {
-            this.logger.debug(`${this.logger.prefix}resumeTimer`, timerID);
+            this.logger.debug(`resumeTimer`, timerID);
             return this.eventQueue.resumeTimer(timerID) ? 1 : NaN;
         },
         getNPT: (): number => {
             const npt = Math.floor((this.content.getNPT90kHz() ?? NaN) / 90);
-            this.logger.debug(`${this.logger.prefix}getNPT`, npt);
+            this.logger.debug(`getNPT`, npt);
             return npt;
         },
         // Cプロファイル
@@ -1437,46 +1491,28 @@ export class BrowserAPI {
             ];
         },
         X_DPA_startResidentApp: (appName: string, showAV: number, returnURI: string, ...Ex_info: string[]): number => {
-            appName = String(appName);
-            showAV = Number(showAV);
-            returnURI = String(returnURI);
-            Ex_info = Ex_info.map(x => String(x));
-            if (this.X_DPA_startResidentApp != null) {
-                return this.X_DPA_startResidentApp(appName, showAV, returnURI, Ex_info);
+            const hook = this.X_DPA_startResidentApp;
+            if (hook != null) {
+                return hook(String(appName), Number(showAV), String(returnURI), Ex_info.map(x => String(x)));
             }
-            if (appName === "ComBrowser") {
-                const uri = String(Ex_info[0]);
-                // const mode = String(Ex_info[1]);
-                // const fullscreen = String(Ex_info[2]) === "1";
-                return NaN;
-            } else if (appName === "BookmarkList") {
-                return NaN;
-            }
+            // ComBrowser and BookmarkList are the only resident apps the spec names here, and this
+            // receiver implements neither, so every name answers with the failure value.
             return NaN;
         },
         X_DPA_getIRDID: (type: number): string | null => {
-            switch (type) {
-                // 受信機固有識別子
-                case 1:
-                    return null;
-                // 視聴者固有識別子
-                case 2:
-                    return null;
-                // 受信機固有識別子又は視聴者固有識別子
-                case 3:
-                    return null;
-            }
-            this.logger.error(`${this.logger.prefix}X_DPA_getIRDID: unknown type`, type);
+            // 1 受信機固有識別子 / 2 視聴者固有識別子 / 3 either. This receiver exposes none of
+            // them, so every type is the same null answer rather than a switch over constants.
+            this.logger.debug(`X_DPA_getIRDID`, type);
             return null;
         },
         X_DPA_writeCproBM: (title: string, dstURI: string, outline: string, CproBMtype: number, expire?: Date): number => {
             // テレビリンクの登録
-            this.logger.error(`${this.logger.prefix}X_DPA_writeCproBM`, title, dstURI, outline, CproBMtype, expire);
+            this.logger.error(`X_DPA_writeCproBM`, title, dstURI, outline, CproBMtype, expire);
             return NaN;
         },
         X_DPA_launchDocWithLink: (documentName: string): number => {
-            this.logger.log(`${this.logger.prefix}%cX_DPA_launchDocWithLink`, "font-size: 1.5em", documentName);
-            if (this.resources.profile !== resource.Profile.TrProfileC) {
+            this.logger.log(`X_DPA_launchDocWithLink`, documentName);
+            if (this.resources.profile !== Profile.TrProfileC) {
                 return NaN;
             }
             // 絶対 URI を使用すること (TR-B14 第三分冊 8.3.10.2)
@@ -1487,12 +1523,13 @@ export class BrowserAPI {
             if (!this.resources.isInternetContent) {
                 // 放送受信状態で使われた場合失敗動作となる
                 // エラーメッセージを表示すべき (8.3.11.4)
-                this.content.quitDocument();
+                this.content.quitDocument().catch((e) => this.logger.error(`quitDocument failed`, e));
                 return NaN;
             }
-            this.content.launchDocument(documentName, { withLink: true });
-            this.interpreter.destroyStack();
-            throw new Error("unreachable!!");
+            this.content.launchDocument(documentName, { withLink: true }).catch((e) => this.logger.error(`X_DPA_launchDocWithLink failed`, documentName, e));
+            // Reached on every launch/quit: this throw is how the page script is aborted, not an
+            // impossible branch.
+            throw new Error("document transition aborted the running script");
         },
     };
 
@@ -1502,14 +1539,14 @@ export class BrowserAPI {
             if (msg.serviceId != null && msg.serviceId !== this.serviceId) {
                 // TR-B14 第二分冊 5.12.6.1
                 if (this.serviceId != null) {
-                    this.logger.log(`${this.logger.prefix}serviceId changed`, msg.serviceId, this.serviceId)
+                    this.logger.log(`serviceId changed`, msg.serviceId, this.serviceId)
                     for (let i = 1; i < 64; i++) { // FIXME
                         this.setUreg(i, "");
                     }
                 }
                 this.serviceId = msg.serviceId;
                 // C プロファイルでは Ureg[0] に service_id を設定しない
-                if (this.resources.profile !== resource.Profile.TrProfileC) {
+                if (this.resources.profile !== Profile.TrProfileC) {
                     // TR-B14 第二分冊 5.12.6.1: service_id を "0xXXXX" 形式で書く
                     this.setUreg(0, "0x" + msg.serviceId.toString(16).padStart(4, "0"));
                 } else {

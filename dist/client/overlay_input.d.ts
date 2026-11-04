@@ -1,4 +1,4 @@
-import { InputApplication, InputApplicationLaunchOptions, InputCancelReason } from "./bml_browser";
+import { InputApplication, InputApplicationLaunchOptions, InputCancelReason } from "./contracts";
 export declare class OverlayInputApplication implements InputApplication {
     private readonly container;
     private readonly input;

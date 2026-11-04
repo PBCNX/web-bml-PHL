@@ -1,6 +1,10 @@
-import { ComponentPMT, MediaType, ModuleListEntry, ProgramInfoMessage, ResponseMessage } from "../server/ws_api";
-import { Indicator, IP } from "./bml_browser";
+import type { ComponentPMT, MediaType, ModuleListEntry, ProgramInfoMessage, ResponseMessage } from "../protocol/messages";
+import { type TextCoding } from "./media/arib_text";
+import { CustomEventTarget, Indicator, IP } from "./contracts";
+import { Diagnostics } from "./introspection";
 import { type Logger } from "./util/logger";
+import { type LocalTimeOffsetSource } from "./time_offset";
+import type { AudioOutput } from "./media/audio_output";
 export type CachedComponent = {
     componentId: number;
     modules: Map<number, CachedModule>;
@@ -43,6 +47,60 @@ export type DownloadComponentInfo = {
     dataEventId: number;
     returnToEntryFlag?: boolean;
 };
+export type PendingResource = {
+    module: string;
+    componentId: number;
+    moduleId: number;
+    filename: string | null;
+    requestType: "lockModuleOnMemory" | "lockModuleOnMemoryEx" | null;
+    ageMs: number;
+    reason: "component-not-in-pmt" | "module-not-in-dii" | "waiting-for-carousel" | "pmt-not-received";
+};
+export type ResourcesDescription = {
+    profile: number | null;
+    activeDocument: string | null;
+    startupComponentId: number;
+    pmtRetrieved: boolean;
+    pmt: {
+        componentId: number;
+        pid: number;
+        streamType: number;
+        dataComponentId: number | null;
+    }[];
+    dii: {
+        componentId: number;
+        dataEventId: number;
+        returnToEntryFlag: boolean | null;
+        modules: {
+            moduleId: number;
+            version: number;
+            size: number;
+        }[];
+    }[];
+    cached: {
+        componentId: number;
+        moduleId: number;
+        version: number;
+        dataEventId: number;
+        files: number;
+        bytes: number;
+    }[];
+    locked: {
+        componentId: number;
+        moduleId: number;
+        lockedBy: string;
+        version: number;
+        files: number;
+    }[];
+    pending: PendingResource[];
+    programInfo: {
+        serviceId: number | null;
+        eventId: number | null;
+        eventName: string | null;
+        originalNetworkId: number | null;
+        transportStreamId: number | null;
+    } | null;
+};
 interface ResourcesEventMap {
     "dataeventchanged": CustomEvent<{
         prevComponent: DownloadComponentInfo;
@@ -63,22 +121,15 @@ interface ResourcesEventMap {
         components: Map<number, ComponentPMT>;
     }>;
 }
-interface CustomEventTarget<M> {
-    addEventListener<K extends keyof M>(type: K, callback: EventListenerOrEventListenerObject, options?: AddEventListenerOptions | boolean): void;
-    dispatchEvent<K extends keyof M>(event: M[K]): boolean;
-    removeEventListener<K extends keyof M>(type: K, callback: EventListenerOrEventListenerObject, options?: EventListenerOptions | boolean): void;
-}
 export type ResourcesEventTarget = CustomEventTarget<ResourcesEventMap>;
-export declare enum Profile {
-    BS = 7,
-    CS = 11,
-    TrProfileA = 12,
-    TrProfileC = 13
-}
+import { Profile } from "./profile";
 export declare class Resources {
     private readonly indicator?;
     private readonly eventTarget;
     private readonly ip;
+    readonly diagnostics: Diagnostics;
+    textCoding: TextCoding;
+    documentCharset: string | null;
     private readonly cachedRemoteResources;
     private readonly remoteResourceRequests;
     private readonly logger;
@@ -95,6 +146,8 @@ export declare class Resources {
     get currentDataEventId(): number | null;
     private cachedComponents;
     private downloadComponents;
+    /** 2.3.4: the audio codec the demuxer sniffed, per component, for the diagnostics snapshot. */
+    private readonly audioCodecRecords;
     getCachedFileBlobUrl(file: CachedFile, key?: any): string;
     private lockedComponents;
     private pmtComponents;
@@ -109,6 +162,15 @@ export declare class Resources {
     private revokeCachedModule;
     private revokeCachedComponent;
     unlockModule(componentId: number, moduleId: number, lockedBy: "lockModuleOnMemory" | "lockModuleOnMemoryEx"): boolean;
+    /** The audio codecs reported by the demuxer, for getDiagnostics() and status bars. */
+    get audioCodecs(): {
+        componentId: number;
+        pid: number;
+        streamType: number;
+        codec: string;
+        expectedCodec: string | null;
+        labelAgrees: boolean;
+    }[];
     componentExistsInDownloadInfo(componentId: number): boolean;
     getDownloadComponentInfo(componentId: number): DownloadComponentInfo | undefined;
     moduleExistsInDownloadInfo(componentId: number, moduleId: number): boolean;
@@ -127,7 +189,31 @@ export declare class Resources {
     get transportStreamId(): number | null;
     private currentTimeNearestPCRBase?;
     private _currentTimeUnixMillis?;
+    private _localTimeOffsetMinutes?;
+    /**
+     * C16: a host override for the broadcast local-time offset in minutes from UTC (PH is 480).
+     * `null` follows the stream's TOT descriptor, and both fall back to JST.
+     */
+    timeZoneOffsetMinutes: number | null;
+    /** The audio-output seam: a host that plays ROM sounds/AIFF itself sets this. */
+    audioOutput: AudioOutput | null;
     private maxTOTIntervalMillis;
+    /**
+     * C16: the stream's local-time offset from UTC in minutes — the host override, else the TOT's
+     * local_time_offset descriptor, else JST. The precedence lives in time_offset.ts so the
+     * configuration snapshot cannot state a different rule.
+     */
+    get localTimeOffsetMinutes(): number;
+    /** Where the offset in use came from: the host, the stream, or the JST default. */
+    get localTimeOffsetSource(): LocalTimeOffsetSource;
+    /**
+ * The offset the box would use with no host setting and no stream declaration: +8:00 for a
+ * Philippine mux, +9:00 (JST) for a Japanese one. The configuration snapshot must use this, not a
+ * frozen JST constant, or it reports a clock the engine is not using.
+ */
+    get localTimeOffsetDefaultMinutes(): number;
+    /** The stream's own offset from the last TOT, null until one arrives. */
+    get streamTimeOffsetMinutes(): number | null;
     get currentTimeUnixMillis(): number | null;
     nearestPCRBase?: number;
     onMessage(msg: ResponseMessage): void;
@@ -159,8 +245,26 @@ export declare class Resources {
         isEx: boolean;
         requesting: boolean;
     }>;
+    /**
+     * P1: the requests that have not been answered, with the reason. This is the difference
+     * between "the carousel is slow" and "this module is not in the DII, so it will never
+     * arrive" — the two look identical from outside, and only one of them is worth waiting for.
+     */
+    getPendingResources(): PendingResource[];
+    /** P1: what the stream has actually delivered, as opposed to what the page asked for. */
+    describe(): ResourcesDescription;
     private programInfoCallbacks;
-    getProgramInfoAsync(): Promise<ProgramInfoMessage>;
+    /**
+     * Resolves with the current program info, or with null if the document exits before any arrives.
+     * The null result is the documented failure mode: callers must not hold a promise that can only
+     * settle by a broadcast that will never come.
+     */
+    getProgramInfoAsync(): Promise<ProgramInfoMessage | null>;
+    /**
+     * Settles every waiting getProgramInfoAsync with null when the document goes away, so a page
+     * transition cannot leak resolvers that would only ever be called by the next program.
+     */
+    abandonPendingProgramInfo(reason: string): void;
     parseServiceReference(serviceRef: string): {
         originalNetworkId: number | null;
         transportStreamId: number | null;
@@ -169,12 +273,21 @@ export declare class Resources {
     private setReceivingStatus;
     addEventListener<K extends keyof ResourcesEventMap>(type: K, callback: (this: undefined, evt: ResourcesEventMap[K]) => void, options?: AddEventListenerOptions | boolean): void;
     removeEventListener<K extends keyof ResourcesEventMap>(type: K, callback: (this: undefined, evt: ResourcesEventMap[K]) => void, options?: AddEventListenerOptions | boolean): void;
+    /**
+     * Drops every downloaded component and cached remote file, revoking the blob URLs first.
+     * Content calls this after a PID change, when the previous service's components are unreachable.
+     */
     clearCache(): void;
     get startupComponentId(): number;
     get startupModuleId(): number;
     get isInternetContent(): boolean;
     baseURIDirectory: string | null;
     setBaseURIDirectory(baseURIDirectory: string): void;
+    /**
+     * Whether `url` is inside the base URI directory. The scope is compared as a URL — scheme and
+     * host must match, and the target must sit at a path boundary — so `http://h/a` does not admit
+     * `https://h/a` and does not admit `http://h/ab`.
+     */
     checkBaseURIDirectory(url: string): boolean;
 }
 export {};

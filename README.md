@@ -1,147 +1,94 @@
-# web-bml
+# web-bml-PHL — BML data broadcasting for the Philippine ISDB-T profile
 
-Webブラウザで動作するデータ放送ブラウザ(BMLブラウザ)
+A browser engine for **BML** (ARIB STD-B24), the data-broadcasting layer of ISDB-T, with the
+**Philippine profile**: the 139-code EWBS area allocation, PH text coding, the PH media types, the
+broadcast clock, and a monospaced face built for the BML cell.
 
-デモ https://otya128.github.io/web-bml
+This is a fork of [otya128/web-bml](https://github.com/otya128/web-bml) (MIT). Upstream's engine is kept
+as-is; the fork adds what a receiver needs to run the pages Philippine broadcasters actually send.
 
-![screenshot](https://user-images.githubusercontent.com/4075988/159119988-d57b4d1b-6940-45d5-8d54-87acb2f75781.png)
+## Status
 
-## 動作環境
+| | |
+|---|---|
+| engine | **3.0.1** on `main`; `legacy/1.1.x` frozen at 1.1.5 for rollback |
+| tests | **232** — 201 pass, 31 skip (capture-backed tests skip on a clean clone), no network |
+| bundle | `dist-iife/bml.js` 1.4 MiB (esbuild, one script) |
+| fonts | 5.7 MiB of `woff2` for both looks in the package; the `ttf` files are in the repository for Windows install |
+| hosts run it | BMLPlayer, OpenDTV-MOD, BaronTV, TVTest-PHL — all on 2.6.x, 3.0.0 is API-identical |
+| provenance | **The web-bml-PHL Authors (PBCNX)** · marker `web-bml-phl-pbcnx` (attribution, not telemetry) |
 
-* LinuxまたはWindows上のNode.js (v22とv24で動作確認済)
-* 新しめのFirefoxまたはChromium系ブラウザ
-* ffmpeg (動画視聴する場合)
+## What the profile needs, and what this engine does
 
-## 使い方
+| rule | what the engine does |
+|---|---|
+| **Charset** | a document is decoded by the charset it declares, not by a guess |
+| **ARIB text** | `.btb` text follows its designation rules; PH text is UTF-8, and C1 controls take no cell |
+| **EWBS** | the 139-code PH allocation; a nationwide alert reaches everyone, a zone alert covers its regions and cities; an alert ends when its descriptor leaves the PMT |
+| **Clock** | the TOT field and its descriptor are reported verbatim; the default follows the box (+480) and "as the stream says" is one host setting |
+| **Media** | `video/X-arib-H264-high` and `audio/X-arib-mpeg4-aac` accepted by type; the demuxer sniffs the audio payload and reports `labelAgrees`, because the band labels one codec and carries another |
+| **NVRAM** | 4 KB PH areas, the BS path form (`nvram:///03/group/30`), and the receiver area as a first-class value (`receiverAreaCode`, `setReceiverAreaCode`) |
+| **Pointer** | `clickAt(x, y)` / `elementAt(x, y)`: closed shadow root, `--nav-index` owner, the Enter-key path |
+| **Typeface** | **BML-PH Sans** in all six slots, **Sans Lite** for a tight budget, **RoundGothic** as an opt-in look |
 
-Mirakurunからの放送、EPGStationからの録画または引数に与えたファイルを再生できます。
+Each change, its source and the measurement behind it: [`docs/PATCHES.md`](docs/PATCHES.md).
+Where all of it comes from: [`NOTICE.md`](NOTICE.md).
 
-### 実行方法
-
-ライブラリ部分をビルド:
-
-```sh
-npm ci
-npm run build
-```
-
-```sh
-npm -w example run build
-npm -w example run start [input.ts]
-```
-
-localhost:23234
-
-### 実行方法(コンテナ)
-
-```sh
-docker build -t web-bml .
-docker run --init --rm --name web-bml -e MIRAK_URL=http://localhost:40772 -e EPG_URL=http://localhost:8888 -p 23234:23234 web-bml
-```
-
-ファイルを試す場合:
-```sh
-docker run --init --rm --name web-bml --mount "type=bind,source=PATH-TO-TS.ts,target=/app/input.ts,readonly" -e INPUT_FILE=input.ts -p 23234:23234 web-bml
-```
-
-MirakurunとEPGStationが既にコンテナで動いている場合:
+## Install
 
 ```sh
-docker run --init --rm --name web-bml --net=host -e MIRAK_URL=http://localhost:40772 -e EPG_URL=http://localhost:8888 web-bml
+# npm 12 sets allow-git=none, so name the permission once per install:
+npm install --allow-git=all github:PBCNX/web-bml-PHL#v3.0.1   # 3.0.1
+
+# npm 11 and earlier:
+npm install github:PBCNX/web-bml-PHL#v3.0.1                  # 3.0.1
+# the old line, for a 1.1 host:
+npm install github:PBCNX/web-bml-PHL#legacy/1.1.x            # 1.1.5
 ```
+
+Pin the tag rather than `#main`: a tag is what the release notes and the checks above describe.
+
+The faces ship in `node_modules/web-bml/fonts/`. A host copies the ones it registers into its static
+path and registers them — [`docs/HOSTING.md`](docs/HOSTING.md) has the six keys, the clock setting and the
+pointer seam.
+
+## Test
 
 ```sh
-docker run --init --rm --name web-bml --net=xxxx -e MIRAK_URL=http://mirakurun:40772 -e EPG_URL=http://epgstation:8888 -p 23234:23234 web-bml
+npm ci && npm run build && npm test
 ```
 
+The layout half of the font check lives in [`test/fixtures/layout-cell-probe.html`](test/fixtures/layout-cell-probe.html):
+it must await `document.fonts.load()` and be served over HTTP, or it measures the fallback instead of
+the face.
 
-### 動画形式
-
-null以外はffmpegが必須
-
-`?format=...&demultiplexServiceId=...&seek=bytes`
-
-* null
-    * ブラウザ向けに動画をエンコードせずデータカルーセルのみをデコードする
-    * データ放送のみのサービス(NHK BS1 707ヘルプチャンネルなど)はこれじゃないと表示できないことがある
-        * `/channels/BS/BS15_0/stream?demultiplexServiceId=707&format=null`
-* mp4
-    * &lt;video&gt;のみで再生する
-    * 字幕非対応
-* h264-mpegts
-    * デフォルト
-    * mpegts.jsを利用
-    * 低遅延で再生されるまでが速い
-    * aribb24.jsによる字幕に対応
-    * 生配信にのみ対応
-        * ただしffmpegのオプションに-reを付けて等速にしているため録画でも一応は動く
-* hls
-    * hls.jsを利用
-    * aribb24.jsによる字幕に対応
-    * 特に理由がなければh264-mpegtsで良い
-
-## 設定
-
-環境変数か.envファイルに以下のように記述
+## Repository
 
 ```
-MIRAK_URL=http://localhost:30772/
+client/        the engine: DOM, CSS, text, NVRAM, EWBS, interpreter bindings
+server/        transport-stream demux and the protocol messages it emits
+protocol/      the message vocabulary and the media-type rules
+es2/           the ECMAScript evaluator, vendored from upstream
+dist/          committed build output, checked by test/dist-hygiene.test.mjs
+fonts/         the two faces, their chunks and their notices
+docs/          hosting, conformance, releasing, the 3.0.0 record
+test/          node:test suites, no network, no broadcaster content
 ```
 
-### MIRAK_URL
+## Docs
 
-MirakurunのURL
+- [`docs/HOSTING.md`](docs/HOSTING.md) — options, fonts, clock, NVRAM, receiver area, audio, pointer.
+- [`docs/PATCHES.md`](docs/PATCHES.md) — the conformance record and its citations.
+- [`docs/RELEASING.md`](docs/RELEASING.md) — private first, public second, and the gate.
+- [`fonts/README.md`](fonts/README.md) — the faces and their files.
+- [`CHANGELOG.md`](CHANGELOG.md) — per release.
+- [`NOTICE.md`](NOTICE.md) — ownership, provenance, the third-party work and the marker.
 
-デフォルト値 `http://localhost:40772/`
+The repo carries **no broadcaster content**.
 
-### EPG_URL
+## Licence
 
-EPGStationのURL
-
-デフォルト値 `http://localhost:8888/`
-
-### FFMPEG
-
-ffmpegの実行ファイル
-
-デフォルト値 `ffmpeg`
-
-### FFMPEG_OUTPUT
-
-1であればffmpegの標準エラー出力をリダイレクト
-
-デフォルト値 `0`
-
-### HLS_DIR
-
-HLSを使う場合の一時出力先
-
-デフォルト値 `./hls`
-
-### PORT
-
-待ち受けるポート番号
-
-デフォルト値 `23234`
-
-### HOST
-
-待ち受けるホスト
-
-デフォルト値 `localhost`
-
-### INPUT_FILE
-
-入力ファイル
-
-## フォント
-
-丸ゴシック用にKosugiMaru(モトヤLマルベリ3等幅)、太丸ゴシック用に丸ゴシック用フォントを太らせたもの、ゴシック用にKosugi(モトヤLシーダ3等幅)が含まれています。
-
-制約が厳しいBMLではスペースによるレイアウトがよく使われるためフォントは仕様で規定されている通り等幅であることが必須です。 (UnicodeではなくJISコード基準なので記号なども全角幅であるべき)
-
-## 実装
-
-STD-B24, TR-B14, TR-B15の仕様を部分的に実装しています。
-
-一部のイベント(CCStatusChanged、MediaStopped)やAPIなどは現状未実装です。
+The engine is **MIT** (upstream's licence kept, the fork's copyright added): [`LICENSE.md`](LICENSE.md).
+The fonts are mixed — OFL 1.1 for BML-PH Sans and the Noto/Huninn sources, Apache-2.0 for the Kosugi
+base of RoundGothic. [`NOTICE.md`](NOTICE.md) maps each file to its holder and notice;
+[`fonts/NOTICE.txt`](fonts/NOTICE.txt) carries the third-party notices.

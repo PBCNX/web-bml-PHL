@@ -2,16 +2,20 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Content = exports.AribKeyCode = void 0;
 exports.keyCodeToAribKey = keyCodeToAribKey;
-const resource_1 = require("./resource");
-const default_clut_1 = require("./default_clut");
-const clut_1 = require("./clut");
-const transpile_css_1 = require("./transpile_css");
-const DOM_1 = require("./interface/DOM");
+exports.requestAnimationFrameAsync = requestAnimationFrameAsync;
+const profile_1 = require("./profile");
+const time_offset_1 = require("./time_offset");
+const media_type_1 = require("./media/media_type");
+const clut_1 = require("./css/clut");
+const clut_2 = require("./css/clut");
+const transpile_css_1 = require("./css/transpile_css");
+const bml_dom_1 = require("./dom/bml_dom");
 const bml_to_xhtml_1 = require("./bml_to_xhtml");
-const arib_jpeg_1 = require("./arib_jpeg");
+const format_1 = require("./format");
+const arib_jpeg_1 = require("./media/arib_jpeg");
 const text_1 = require("./text");
-const default_css_1 = require("./default_css");
-const default_c_css_1 = require("./default_c_css");
+const default_css_1 = require("./css/default_css");
+const default_c_css_1 = require("./css/default_c_css");
 var AribKeyCode;
 (function (AribKeyCode) {
     AribKeyCode[AribKeyCode["Up"] = 1] = "Up";
@@ -165,10 +169,42 @@ function keyCodeToAribKey(keyCode) {
             return -1;
     }
 }
-function requestAnimationFrameAsync() {
-    return new Promise((resolve, _) => {
-        requestAnimationFrame((_time) => resolve());
+function requestAnimationFrameAsync(timeoutMillis = 100) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+            if (!settled) {
+                settled = true;
+                resolve();
+            }
+        };
+        requestAnimationFrame(() => finish());
+        // 3.0.0: a hidden, occluded or background window throttles or stops requestAnimationFrame, and
+        // this promise is awaited in the middle of loadDocument — the page then stays "loading" for
+        // ever even though every module arrived (BMLPLAYER, ABS 3201: startup.bml still loading at
+        // 190 s with all 19 modules in at 14 s). The timer is the floor: normally rAF wins at ~16 ms,
+        // and a throttled document still settles instead of hanging the load.
+        setTimeout(finish, timeoutMillis);
     });
+}
+/**
+ * P6: the charset a resource declares in its media type, if it declares one.
+ *
+ * This is where the declaration actually lives — the carousel's MIME parameters, not the XML
+ * prologue — so a page whose prologue says `UTF-8` and whose MIME says `charset=UTF-8` agrees with
+ * itself, and one that says nothing falls back to the profile exactly as before.
+ */
+function charsetOf(file) {
+    const parameters = file?.contentType?.parameters;
+    if (parameters == null) {
+        return null;
+    }
+    for (const parameter of parameters) {
+        if (String(parameter.attribute ?? "").toLowerCase() === "charset") {
+            return parameter.value ?? null;
+        }
+    }
+    return null;
 }
 class Content {
     documentElement;
@@ -184,12 +220,14 @@ class Content {
     videoPlaneModeEnabled;
     tunnelPointerToVideoPlaneEnabled;
     loaded = false;
+    /** P1: 起動の世代番号 (Content#startupDelivered と合わせて読み込み状態を表す) */
+    launchToken = 0;
     inputApplication;
     npt;
     uaStyle;
     showErrorMessage;
     logger;
-    constructor(bmlDocument, documentElement, resources, eventQueue, eventDispatcher, interpreter, videoContainer, bmlEventTarget, indicator, videoPlaneModeEnabled, tunnelPointerToVideoPlaneEnabled, inputApplication, showErrorMessage, logger) {
+    constructor(bmlDocument, documentElement, resources, eventQueue, eventDispatcher, interpreter, videoContainer, bmlEventTarget, indicator, options) {
         this.bmlDocument = bmlDocument;
         this.documentElement = documentElement;
         this.resources = resources;
@@ -199,11 +237,11 @@ class Content {
         this.videoContainer = videoContainer;
         this.bmlEventTarget = bmlEventTarget;
         this.indicator = indicator;
-        this.videoPlaneModeEnabled = videoPlaneModeEnabled;
-        this.tunnelPointerToVideoPlaneEnabled = tunnelPointerToVideoPlaneEnabled;
-        this.inputApplication = inputApplication;
-        this.showErrorMessage = showErrorMessage ?? this.defaultShowErrorMessage.bind(this);
-        this.logger = logger;
+        this.videoPlaneModeEnabled = options.videoPlaneModeEnabled;
+        this.tunnelPointerToVideoPlaneEnabled = options.tunnelPointerToVideoPlaneEnabled;
+        this.inputApplication = options.inputApplication;
+        this.showErrorMessage = options.showErrorMessage ?? this.defaultShowErrorMessage.bind(this);
+        this.logger = options.logger;
         this.documentElement.addEventListener("keydown", (event) => {
             if (event.altKey || event.ctrlKey || event.metaKey) {
                 return;
@@ -227,7 +265,7 @@ class Content {
         });
         this.resources.addEventListener("dataeventchanged", async (event) => {
             const { component, returnToEntryFlag } = event.detail;
-            this.logger.debug(`${this.logger.prefix}DataEventChanged`, event.detail);
+            this.logger.debug(`DataEventChanged`, event.detail);
             const { moduleId, componentId } = this.resources.parseURLEx(this.resources.activeDocument);
             if (moduleId == null || componentId == null) {
                 return;
@@ -242,7 +280,7 @@ class Content {
                     // Exは運用されない
                     const moduleLocked = this.documentElement.querySelectorAll("beitem[type=\"DataEventChanged\"]");
                     for (const elem of Array.from(moduleLocked)) {
-                        const beitem = DOM_1.BML.nodeToBMLNode(elem, this.bmlDocument);
+                        const beitem = bml_dom_1.BML.nodeToBMLNode(elem, this.bmlDocument);
                         if (!beitem.subscribe) {
                             continue;
                         }
@@ -269,8 +307,8 @@ class Content {
                         // 引き戻しフラグによるエントリコンポーネントへの遷移の場合lockModuleOnMemoryでロックしたモジュールのロックが解除される TR-B14 第二分冊 表5-11
                         this.resources.unlockModules("lockModuleOnMemory");
                     }
-                    this.logger.error(`${this.logger.prefix}launch startup (DataEventChanged)`);
-                    this.launchStartup();
+                    this.logger.error(`launch startup (DataEventChanged)`);
+                    this.runLifecycle("launchStartup(DataEventChanged)", this.launchStartup());
                     return true;
                 }
                 return false;
@@ -283,7 +321,11 @@ class Content {
                 if (componentId === this.resources.startupComponentId && moduleId === this.resources.startupModuleId) {
                     if (!this.loaded) {
                         this.loaded = true;
-                        this.resources.getProgramInfoAsync().then(_ => this.launchStartup());
+                        this.resources.getProgramInfoAsync().then((info) => {
+                            if (info != null) {
+                                this.runLifecycle("launchStartup(moduleupdated)", this.launchStartup());
+                            }
+                        });
                     }
                 }
             }
@@ -291,7 +333,7 @@ class Content {
         this.resources.addEventListener("componentupdated", (event) => {
             const { component } = event.detail;
             for (const beitem of this.documentElement.querySelectorAll("beitem[type=\"ModuleUpdated\"][subscribe=\"subscribe\"]")) {
-                const bmlBeitem = DOM_1.BML.nodeToBMLNode(beitem, this.bmlDocument);
+                const bmlBeitem = bml_dom_1.BML.nodeToBMLNode(beitem, this.bmlDocument);
                 bmlBeitem.internalDIIUpdated(component.componentId, component.modules, component.dataEventId);
             }
         });
@@ -300,17 +342,17 @@ class Content {
             const { components, prevComponents } = event.detail;
             const { componentId: currentComponentId } = this.resources.parseURLEx(this.resources.activeDocument);
             for (const beitem of this.documentElement.querySelectorAll("beitem[type=\"ModuleUpdated\"][subscribe=\"subscribe\"]")) {
-                const bmlBeitem = DOM_1.BML.nodeToBMLNode(beitem, this.bmlDocument);
+                const bmlBeitem = bml_dom_1.BML.nodeToBMLNode(beitem, this.bmlDocument);
                 bmlBeitem.internalPMTUpdated(new Set(components.keys()));
             }
             if (currentComponentId == null) {
                 return;
             }
-            // 視聴中のコンポーネントが消滅
-            if (currentComponentId != null && !components.has(currentComponentId)) {
+            // 視聴中のコンポーネントが消滅 (currentComponentId is known non-null here)
+            if (!components.has(currentComponentId)) {
                 this.eventQueue.queueGlobalAsyncEvent(async () => {
                     this.resources.unlockModules();
-                    this.launchStartup();
+                    this.runLifecycle("launchStartup(component removed)", this.launchStartup());
                     return true;
                 });
                 this.eventQueue.processEventQueue();
@@ -326,22 +368,28 @@ class Content {
                 (prevEntryPID != null && prevEntryPID !== currentEntryPID)) {
                 // エントリコンポーネントが消滅
                 if (currentEntryPID == null) {
-                    this.exitDocument();
+                    this.runLifecycle("exitDocument(entry component gone)", this.exitDocument());
                     return;
                 }
-                this.logger.error(`${this.logger.prefix}PID changed`, prevPID, currentPID, prevEntryPID, currentEntryPID);
+                this.logger.error(`PID changed`, prevPID, currentPID, prevEntryPID, currentEntryPID);
                 this.eventQueue.queueGlobalAsyncEvent(async () => {
                     this.resources.unlockModules();
                     this.resources.clearCache();
-                    this.launchStartup();
+                    this.runLifecycle("launchStartup(PID changed)", this.launchStartup());
                     return true;
                 });
                 this.eventQueue.processEventQueue();
             }
         });
     }
-    decodeText(input) {
-        return (0, text_1.getTextDecoder)(this.resources.profile)(input);
+    /**
+     * P6: decode with the charset the resource declares, falling back to the profile's default.
+     *
+     * `file` is optional because one caller has no resource at all — an event message's private data
+     * — and that is text the *stream* defined, not a document that carries a declaration.
+     */
+    decodeText(input, file) {
+        return (0, text_1.getDeclaredTextDecoder)(this.resources.profile, charsetOf(file))(input);
     }
     _currentDateMode = 0;
     set currentDateMode(timeMode) {
@@ -355,7 +403,7 @@ class Content {
     }
     tunnelPointerToVideoPlane() {
         const body = this.getBody();
-        const videoElement = body.querySelector("[arib-type=\"video/X-arib-mpeg2\"]");
+        const videoElement = (0, media_type_1.findVideoElement)(body);
         if (videoElement == null) {
             return;
         }
@@ -485,14 +533,19 @@ class Content {
     async loadDocumentToDOM(data) {
         if (this.uaStyle == null) {
             this.uaStyle = document.createElement("style");
-            this.uaStyle.textContent = this.resources.profile === resource_1.Profile.TrProfileC ? default_c_css_1.defaultCProfileCSS : default_css_1.defaultCSS;
+            this.uaStyle.textContent = this.resources.profile === profile_1.Profile.TrProfileC ? default_c_css_1.defaultCProfileCSS : default_css_1.defaultCSS;
             this.documentElement.parentNode?.prepend(this.uaStyle);
         }
         const xhtmlDocument = new DOMParser().parseFromString(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" lang="ja"></html>`, "application/xhtml+xml");
         const documentElement = xhtmlDocument.createElement("html");
-        documentElement.innerHTML = (0, bml_to_xhtml_1.bmlToXHTMLFXP)(data, this.resources.profile === resource_1.Profile.TrProfileC);
+        // This innerHTML is not an XSS vector and must not be sanitised: a BML browser exists to parse
+        // the page markup it is sent. The element belongs to a detached DOMParser document (nothing
+        // executes there), and bmlToXHTMLFXP has already renamed <script>/<style>/<link> to arib-*,
+        // which the engine interprets itself rather than the browser. Sanitising would delete the
+        // page.
+        documentElement.innerHTML = (0, bml_to_xhtml_1.bmlToXHTMLFXP)(data, this.resources.profile === profile_1.Profile.TrProfileC);
         const p = Array.from(this.documentElement.childNodes).filter(x => x.nodeName.toLowerCase() === "body" || x.nodeName.toLowerCase() === "head");
-        const videoElementNew = documentElement.querySelector("[arib-type=\"video/X-arib-mpeg2\"]");
+        const videoElementNew = (0, media_type_1.findVideoElement)(documentElement);
         const prevBody = this.getBody();
         const newBody = documentElement.querySelector("body");
         prevBody?.setAttribute("arib-loading", "arib-loading");
@@ -504,7 +557,7 @@ class Content {
                     const newStyle = document.createElement("style");
                     const res = await this.resources.fetchResourceAsync(href);
                     if (res != null) {
-                        newStyle.textContent = await (0, transpile_css_1.transpileCSS)(this.decodeText(res.data), { inline: false, clutReader: this.getCLUT.bind(this), convertUrl: this.convertCSSUrl.bind(this) });
+                        newStyle.textContent = await (0, transpile_css_1.transpileCSS)(this.decodeText(res.data, res), { inline: false, clutReader: this.getCLUT.bind(this), convertUrl: this.convertCSSUrl.bind(this) });
                         style.parentElement?.appendChild(newStyle);
                     }
                 }
@@ -534,7 +587,7 @@ class Content {
         this.replaceTextCDATA(newBody, t);
         let observe = false;
         for (const e of t) {
-            const cd = DOM_1.BML.nodeToBMLNode(e, this.bmlDocument);
+            const cd = bml_dom_1.BML.nodeToBMLNode(e, this.bmlDocument);
             if (cd.internalReflow()) {
                 observe = true;
             }
@@ -543,7 +596,7 @@ class Content {
             const observer = new MutationObserver((recs) => {
                 for (const rec of recs) {
                     rec.target.querySelectorAll("arib-text, arib-cdata").forEach(elem => {
-                        const cd = DOM_1.BML.nodeToBMLNode(elem, this.bmlDocument);
+                        const cd = bml_dom_1.BML.nodeToBMLNode(elem, this.bmlDocument);
                         cd.internalReflow();
                     });
                 }
@@ -562,7 +615,7 @@ class Content {
         if (element == null) {
             return;
         }
-        const felem = DOM_1.BML.htmlElementToBMLHTMLElement(element, this.bmlDocument);
+        const felem = bml_dom_1.BML.htmlElementToBMLHTMLElement(element, this.bmlDocument);
         if (felem && felem.focus) {
             felem.focus();
         }
@@ -573,6 +626,78 @@ class Content {
             document.fonts.delete(font);
         }
         this.fonts.length = 0;
+    }
+    /**
+     * 2.4.0: the pointer as the remote. The element at these coordinates (CSS px) that the profile would
+     * actually focus - the owner of the inherited `--nav-index` - or null.
+     *
+     * The page lives in a **closed shadow root**, so `document.elementFromPoint` stops at the shadow
+     * host and never sees a page element; the hit test runs on the root the page is in instead
+     * (`ShadowRoot.elementFromPoint`, which BMLPLAYER measured as the working form).
+     *
+     * A hit element only counts when it carries a `--nav-index` (the property is inherited, so the
+     * element at the point may be a child of the owner); the owner is found with the same `findNavIndex`
+     * the remote uses. Accepting anything `isFocusable` - images, the host - sent TV5's Channel Guide
+     * click to the wrong item, so the nav-index is the rule, not focusability alone.
+     */
+    elementAt(x, y) {
+        const root = this.documentElement.getRootNode();
+        const fromPoint = root.elementFromPoint;
+        const stack = (() => {
+            const layered = root.elementsFromPoint;
+            if (typeof layered === "function") {
+                return layered.call(root, x, y);
+            }
+            return typeof fromPoint === "function" ? [fromPoint.call(root, x, y)] : [document.elementFromPoint(x, y)];
+        })();
+        for (const hit of stack) {
+            if (hit == null || hit === this.documentElement || !(hit instanceof HTMLElement)) {
+                continue;
+            }
+            // --nav-index is inherited: read it at the point, let findNavIndex name the owner.
+            const navIndex = Number.parseInt(window.getComputedStyle(hit).getPropertyValue("--nav-index"), 10);
+            if (!Number.isFinite(navIndex)) {
+                continue;
+            }
+            const target = this.findNavIndex(navIndex);
+            if (target != null && this.isFocusable(target)) {
+                return target;
+            }
+        }
+        return null;
+    }
+    /**
+     * 2.4.0: the pointer as the remote. Focuses the element `elementAt` finds and does exactly what the
+     * Enter key does: `internalSetActive`, the same synchronous `click` event, `processEventQueue`, and
+     * an anchor's `href` (launch or fragment) - so `onfocus` precedes `onclick` and a link actually
+     * navigates, as on the box.
+     *
+     * Returns false when nothing nav-indexed is under the point, **including the page root**: a host's
+     * fallback must run rather than believe the page took the click (GMA has a single hidden element,
+     * so a click on the page body is not a click the page handles).
+     */
+    clickAt(x, y) {
+        const target = this.elementAt(x, y);
+        if (target == null) {
+            return false;
+        }
+        this.focusHelper(target);
+        const felem = bml_dom_1.BML.htmlElementToBMLHTMLElement(target, this.bmlDocument);
+        if (felem != null && typeof felem.internalSetActive === "function") {
+            felem.internalSetActive(true);
+        }
+        this.eventQueue.queueSyncEvent({ type: "click", target });
+        this.eventQueue.processEventQueue();
+        if (felem != null && typeof felem.href === "string" && felem.href !== "" && !felem.href.startsWith("#")) {
+            const href = felem.href;
+            // The document is going away, so this handler cannot act on it; a failed launch is logged
+            // rather than becoming an unhandled rejection.
+            this.launchDocument(href).catch((e) => this.logger.error(`launchDocument failed`, href, e));
+        }
+        else if (felem != null && typeof felem.href === "string" && felem.href.startsWith("#")) {
+            this.focusFragment(felem.href);
+        }
+        return true;
     }
     _context = {};
     get context() {
@@ -590,7 +715,7 @@ class Content {
             });
             if (await this.eventQueue.executeEventHandler(onunload)) {
                 // readPersistentArray writePersistentArray unlockModuleOnMemoryEx unlockAllModulesOnMemoryしか呼び出せないので終了したらおかしい
-                this.logger.error(`${this.logger.prefix}onunload`);
+                this.logger.error(`onunload`);
                 return true;
             }
             this.eventDispatcher.resetCurrentEvent();
@@ -605,10 +730,12 @@ class Content {
     async exitDocument() {
         await this.unloadDocument();
         this.eventQueue.reset();
+        this.resources.abandonPendingProgramInfo("document exited");
         this.unloadAllDRCS();
         this.resources.unlockModules();
         this._context = { from: this.resources.activeDocument, to: null };
         this.resources.activeDocument = null;
+        this.resources.diagnostics.setPhase(++this.launchToken, "exited", null, null);
         this.bmlEventTarget.dispatchEvent(new CustomEvent("invisible", { detail: true }));
         const p = Array.from(this.documentElement.childNodes).filter(x => x.nodeName.toLowerCase() === "body" || x.nodeName.toLowerCase() === "head");
         for (const n of p) {
@@ -627,10 +754,10 @@ class Content {
         return this.quitDocument();
     }
     isFocusable(element) {
-        if (!DOM_1.BML.isFocusable(element)) {
+        if (!bml_dom_1.BML.isFocusable(element)) {
             return false;
         }
-        if (this.resources.profile === resource_1.Profile.TrProfileC) {
+        if (this.resources.profile === profile_1.Profile.TrProfileC) {
             // STD-B24 第二分冊(2/2) 付属4 5.1.6
             const focusable = element.nodeName.toLowerCase() === "a" || element.nodeName.toLowerCase() === "input" || element.nodeName.toLowerCase() === "textarea" || element.hasAttribute("onclick") || element.hasAttribute("onfocus") || element.hasAttribute("onblur") || element.hasAttribute("onkeydown") || element.hasAttribute("onkeyup");
             if (!focusable) {
@@ -658,7 +785,7 @@ class Content {
     // Cプロファイルでは受信機が適切にナビゲーションを行う (STD-B24 第二分冊 (2/2) 5.1.6 フォーカスの運用)
     // nav-indexを使って再現する
     shimCProfileNavigation() {
-        if (this.resources.profile !== resource_1.Profile.TrProfileC) {
+        if (this.resources.profile !== profile_1.Profile.TrProfileC) {
             return;
         }
         this.documentElement.querySelectorAll("a, input, textarea, [onclick], [onfocus], [onblur], [onkeydown], [onkeyup]").forEach((element, i) => {
@@ -672,9 +799,23 @@ class Content {
             htmlElement.style.setProperty("--nav-right", `${i + 1}`);
         });
     }
-    async loadDocument(file, documentName) {
+    async loadDocument(file, documentName, token) {
+        // A throw anywhere below would leave the phase at "parsing" with nothing in the scripts
+        // list, which is exactly the "why is this page stuck?" question the diagnostics exist for.
+        try {
+            return await this.loadDocumentInner(file, documentName, token);
+        }
+        catch (e) {
+            this.logger.error(`loadDocument failed`, documentName, e);
+            this.resources.diagnostics.scriptError("run", documentName, e);
+            this.resources.diagnostics.setPhase(token, "failed", this.resources.activeDocument, documentName, e instanceof Error ? e.message : String(e));
+            return false;
+        }
+    }
+    async loadDocumentInner(file, documentName, token) {
         await this.unloadDocument();
         this._context = { from: this.resources.activeDocument, to: documentName };
+        this.resources.diagnostics.setPhase(token, "parsing", documentName, documentName);
         this.bmlDocument._currentFocus = null;
         // 提示中の文書と同一サービス内の別コンポーネントへの遷移の場合lockModuleOnMemoryでロックしたモジュールのロックは解除される TR-B14 第二分冊 表5-11
         const { componentId: nextComponent } = this.resources.parseURLEx(documentName);
@@ -683,15 +824,16 @@ class Content {
             this.resources.unlockModules("lockModuleOnMemory");
         }
         this.resources.activeDocument = documentName;
+        this.resources.documentCharset = charsetOf(file);
         await requestAnimationFrameAsync();
-        await this.loadDocumentToDOM(this.decodeText(file.data));
+        await this.loadDocumentToDOM(this.decodeText(file.data, file));
         this.loadObjects();
         this.eventQueue.reset();
         this.unloadAllDRCS();
         let width = 960;
         let height = 540;
         const body = this.getBody();
-        const bmlBody = DOM_1.BML.nodeToBMLNode(body, this.bmlDocument);
+        const bmlBody = bml_dom_1.BML.nodeToBMLNode(body, this.bmlDocument);
         const bodyStyle = window.getComputedStyle(body);
         const resolution = bodyStyle.getPropertyValue("--resolution").trim();
         const displayAspectRatio = bodyStyle.getPropertyValue("--display-aspect-ratio").trim();
@@ -712,25 +854,14 @@ class Content {
             aspectNum = 1;
             aspectDen = 2;
         }
-        function mapProfile(profile) {
-            switch (profile) {
-                case resource_1.Profile.TrProfileA:
-                    return "A";
-                case resource_1.Profile.TrProfileC:
-                    return "C";
-                case resource_1.Profile.BS:
-                    return "BS";
-                case resource_1.Profile.CS:
-                    return "CS";
-                default:
-                    return "";
-            }
-        }
+        // P1/P4: ページが宣言した解像度そのもの。ホストが「960x540で描いた」ではなく
+        // 「720x480と宣言された」を読めるようにする
+        this.resources.diagnostics.setResolution(resolution.length === 0 ? null : resolution, width, height, displayAspectRatio.length === 0 ? null : displayAspectRatio);
         this.bmlEventTarget.dispatchEvent(new CustomEvent("load", {
             detail: {
                 resolution: { width, height },
                 displayAspectRatio: { numerator: aspectNum, denominator: aspectDen },
-                profile: mapProfile(this.resources.profile),
+                profile: (0, profile_1.profileLetter)(this.resources.profile),
             }
         }));
         body.style.maxWidth = width + "px";
@@ -741,22 +872,21 @@ class Content {
         this.documentElement.style.minWidth = width + "px";
         this.documentElement.style.maxHeight = height + "px";
         this.documentElement.style.minHeight = height + "px";
-        bmlBody.invisible = bmlBody.invisible;
+        bmlBody.internalDispatchInvisible();
         const usedKeyList = bodyStyle.getPropertyValue("--used-key-list");
         this.bmlEventTarget.dispatchEvent(new CustomEvent("usedkeylistchanged", {
             detail: {
-                usedKeyList: new Set(usedKeyList.split(" ").filter((x) => {
-                    return x === "basic" || x === "numeric-tuning" || x === "data-button" || x === "special-1" || x === "special-2";
-                }))
+                usedKeyList: (0, format_1.parseUsedKeyList)(usedKeyList)
             }
         }));
         // フォーカスはonloadの前に当たるがonloadが実行されるまではイベントは実行されない
         // STD-B24 第二分冊(2/2) 第二編 付属1 5.1.3参照
+        this.resources.diagnostics.setPhase(token, "running", documentName, documentName);
         this.eventQueue.lockSyncEventQueue();
         let exit = false;
         let scriptCount = 0;
         try {
-            if (this.resources.profile === resource_1.Profile.TrProfileC) {
+            if (this.resources.profile === profile_1.Profile.TrProfileC) {
                 this.shimCProfileNavigation();
                 this.focusFirstNavIndex();
             }
@@ -769,7 +899,7 @@ class Content {
                 if (src) {
                     const res = await this.resources.fetchResourceAsync(src);
                     if (res !== null) {
-                        if (exit = await this.interpreter.addScript(this.decodeText(res.data), src)) {
+                        if (exit = await this.interpreter.addScript(this.decodeText(res.data, res), src)) {
                             return true;
                         }
                     }
@@ -784,7 +914,6 @@ class Content {
             const body = this.getBody();
             const onload = body?.getAttribute("arib-onload");
             if (onload != null) {
-                this.logger.debug(`${this.logger.prefix}START ONLOAD`);
                 this.eventDispatcher.setCurrentEvent({
                     target: body,
                     type: "load",
@@ -793,11 +922,12 @@ class Content {
                     return true;
                 }
                 this.eventDispatcher.resetCurrentEvent();
-                this.logger.debug(`${this.logger.prefix}END ONLOAD`);
             }
             for (const beitem of this.documentElement.querySelectorAll("beitem[subscribe=\"subscribe\"]")) {
-                const bmlBeitem = DOM_1.BML.nodeToBMLNode(beitem, this.bmlDocument);
-                bmlBeitem.subscribe = bmlBeitem.subscribe;
+                const bmlBeitem = bml_dom_1.BML.nodeToBMLNode(beitem, this.bmlDocument);
+                // The attribute is the state, so re-arming is a direct call rather than an
+                // assignment that reads from the property it writes.
+                bmlBeitem.internalSetSubscribe(true);
             }
         }
         finally {
@@ -805,21 +935,22 @@ class Content {
                 this.eventQueue.unlockSyncEventQueue();
             }
         }
-        this.logger.debug(`${this.logger.prefix}START PROC EVQ`);
         if (await this.eventQueue.processEventQueue()) {
             return true;
         }
-        this.logger.debug(`${this.logger.prefix}END PROC EVQ`);
         if (this.tunnelPointerToVideoPlaneEnabled) {
             this.tunnelPointerToVideoPlane();
         }
         this.indicator?.setUrl(this.resources.activeDocument.replace(/(^https?:\/\/)[^/]+/, (_, g) => g + "…"), false);
+        // P1: ここまで来たら描画とスクリプトは終わっている。以降ページが止まっているなら
+        // 原因は読み込みではなく、待っているもの (ロック/表/イベント) の側にある
+        this.resources.diagnostics.setPhase(token, "ready", documentName, documentName);
         return false;
     }
     processTimerEvent() {
         const timerFired = this.documentElement.querySelectorAll("beitem[type=\"TimerFired\"]");
         timerFired.forEach(elem => {
-            const beitem = DOM_1.BML.nodeToBMLNode(elem, this.bmlDocument);
+            const beitem = bml_dom_1.BML.nodeToBMLNode(elem, this.bmlDocument);
             if (!beitem.subscribe) {
                 return;
             }
@@ -831,18 +962,13 @@ class Content {
                 if (timeValue.length !== 14) {
                     return;
                 }
-                const year = Number.parseInt(timeValue.substring(0, 4));
-                const month = Number.parseInt(timeValue.substring(4, 6));
-                const day = Number.parseInt(timeValue.substring(6, 8));
-                const hour = Number.parseInt(timeValue.substring(8, 10));
-                const minute = Number.parseInt(timeValue.substring(10, 12));
-                const second = Number.parseInt(timeValue.substring(12, 14));
-                const date = new Date(year, month - 1, day, hour, minute, second);
-                const time = date.getTime();
-                // 放送日時は JST 固定なので、実行環境のタイムゾーンを経由して UTC 時刻へ変換する
-                const tz = date.getTimezoneOffset() * 60 * 1000;
-                const jst = 9 * 60 * 60 * 1000;
-                const jstTime = time - tz - jst;
+                const clock = (0, time_offset_1.parseBroadcastWallClock)(timeValue);
+                if (clock == null) {
+                    return;
+                }
+                // C16: the page's absolute time is in the broadcast local time, which the stream
+                // declares in its TOT (PH +8, Japan +9); assuming JST put every PH timer an hour off.
+                const jstTime = (0, time_offset_1.broadcastWallClockToUnixMillis)({ ...clock, offsetMinutes: this.resources.localTimeOffsetMinutes });
                 if (this.resources.currentTimeUnixMillis != null && jstTime <= this.resources.currentTimeUnixMillis) {
                     beitem.internalTimerFired = true;
                     this.eventDispatcher.dispatchTimerFiredEvent(0, elem);
@@ -865,29 +991,84 @@ class Content {
             }
         });
     }
-    launchDocument(documentName, options) {
-        this.launchDocumentAsync(documentName, options);
-        return NaN;
-    }
     async launchStartup() {
-        const module = `arib-dc://-1.-1.-1/${this.resources.startupComponentId.toString(16).padStart(2, "0")}/${this.resources.startupModuleId.toString(16).padStart(4, "0")}`;
+        const module = `arib-dc://-1.-1.-1${(0, format_1.formatModuleRef)(this.resources.startupComponentId, this.resources.startupModuleId)}`;
         await this.resources.fetchResourceAsync(module);
         if (this.resources.fetchLockedResource(module + "/startup.bml")) {
-            await this.launchDocumentAsync(module + "/startup.bml");
+            await this.launchDocument(module + "/startup.bml");
             return true;
         }
         else if (this.resources.fetchLockedResource(module)) {
-            await this.launchDocumentAsync(module);
+            await this.launchDocument(module);
             return true;
         }
         else {
-            this.exitDocument();
+            await this.exitDocument();
         }
         return false;
     }
-    async launchDocumentAsync(documentName, options) {
+    /**
+     * Whether the pressed key belongs to a key group the page enabled through `--used-key-list`.
+     * `none` disables everything; an empty list leaves only the basic and data-button groups live
+     * (STD-B24 第二分冊(2/2) 第二編 付属1 5.1.3).
+     */
+    isKeyGroupEnabled(key) {
+        const body = this.getBody();
+        if (body == null) {
+            return false;
+        }
+        const usedKeyList = window.getComputedStyle(body).getPropertyValue("--used-key-list").split(" ").filter(x => x.length);
+        if (usedKeyList.length > 0 && usedKeyList[0] === "none") {
+            return false;
+        }
+        const keyGroup = (this.resources.profile === profile_1.Profile.TrProfileC ? keyCodeToKeyGroupCProfile : keyCodeToKeyGroup).get(key);
+        if (keyGroup == null) {
+            return false;
+        }
+        if (usedKeyList.length === 0) {
+            return keyGroup === "basic" || keyGroup === "data-button";
+        }
+        return usedKeyList.some(x => x === keyGroup);
+    }
+    /**
+     * Runs one event handler with the synchronous queue locked. Returns true when the handler
+     * reported that execution ended (a navigation): the lock is then left held, because the
+     * incoming document owns the queue from that point.
+     */
+    async runHandlerLocked(handler) {
+        let exit = false;
+        try {
+            this.eventQueue.lockSyncEventQueue();
+            exit = await this.eventQueue.executeEventHandler(handler);
+            return exit;
+        }
+        finally {
+            if (!exit) {
+                this.eventQueue.unlockSyncEventQueue();
+            }
+        }
+    }
+    /**
+     * Runs a lifecycle step started from a listener or queued callback and records a failure.
+     * Without this an unexpected throw becomes an unhandled rejection that no diagnostics entry
+     * ever mentions, which is exactly the "page is stuck and nothing says why" case.
+     */
+    runLifecycle(step, action) {
+        action.catch((e) => {
+            this.logger.error(`lifecycle step failed`, step, e);
+            this.resources.diagnostics.scriptError("run", step, e);
+        });
+    }
+    /**
+     * Starts a document transition; the promise settles when the new document has been launched.
+     * The ARIB-facing callers cannot await it — they throw to unwind the interpreter — so they
+     * attach a catch, which keeps a failed launch from becoming an unhandled rejection.
+     */
+    async launchDocument(documentName, options) {
         const withLink = options?.withLink ?? false;
-        this.logger.log(`${this.logger.prefix}%claunchDocument`, "font-size: 1.5em", documentName);
+        this.logger.log(`launchDocument`, documentName);
+        // P1: この起動の世代。入れ子の遷移が起きたら、外側の遅れて届いた書き込みは捨てる
+        const token = ++this.launchToken;
         this.eventQueue.discard();
         const { component, module, filename } = this.resources.parseURL(documentName);
         const componentId = Number.parseInt(component ?? "", 16);
@@ -895,7 +1076,7 @@ class Content {
         let normalizedDocument;
         if (!Number.isInteger(componentId) || !Number.isInteger(moduleId)) {
             const isInternet = documentName.startsWith("http://") || documentName.startsWith("https://");
-            if (isInternet && (!this.resources.isInternetContent || (this.resources.profile === resource_1.Profile.TrProfileC && withLink))) {
+            if (isInternet && (!this.resources.isInternetContent || (this.resources.profile === profile_1.Profile.TrProfileC && withLink))) {
                 // 放送コンテンツ->通信コンテンツへの遷移
                 this.resources.setBaseURIDirectory(documentName);
                 normalizedDocument = documentName;
@@ -907,39 +1088,55 @@ class Content {
                     // > 受信機が非リンクを搭載していない場合、再選局相当の動作を行なう、または、遷移を行わずにリンク状態を継続する
                     // C 8.3.11.4 受信機の動作失敗時のガイドライン
                     // > ベースURIディレクトリに合致しないURIが指定された場合は、データ放送ブラウザは失敗動作とし、受信機はエラーメッセージを表示する
-                    this.logger.error(`${this.logger.prefix}base URI directory violation`);
+                    this.logger.error(`base URI directory violation`);
+                    this.resources.diagnostics.setPhase(token, "failed", this.resources.activeDocument, documentName, "base URI directory violation (E402)");
                     await this.fail("エラー", "ベースURIディレクトリエラー", "E402");
-                    return NaN;
+                    return;
                 }
                 normalizedDocument = new URL(documentName, this.resources.activeDocument).toString();
             }
             else {
-                this.logger.error(`${this.logger.prefix}failed to fetch document`, documentName);
+                this.logger.error(`failed to fetch document`, documentName);
+                this.resources.diagnostics.setPhase(token, "failed", this.resources.activeDocument, documentName, "not a carousel path, and internet content is not allowed here");
                 await this.quitDocument();
-                return NaN;
+                return;
             }
             this.resources.invalidateRemoteCache(documentName);
         }
         else if (filename != null) {
-            normalizedDocument = `/${componentId.toString(16).padStart(2, "0")}/${moduleId.toString(16).padStart(4, "0")}/${filename}`;
+            normalizedDocument = `${(0, format_1.formatModuleRef)(componentId, moduleId)}/${filename}`;
         }
         else {
-            normalizedDocument = `/${componentId.toString(16).padStart(2, "0")}/${moduleId.toString(16).padStart(4, "0")}`;
+            normalizedDocument = (0, format_1.formatModuleRef)(componentId, moduleId);
         }
         this.indicator?.setUrl(normalizedDocument.replace(/(^https?:\/\/)[^/]+/, (_, g) => g + "…"), true);
+        this.resources.diagnostics.setPhase(token, "fetching", this.resources.activeDocument, normalizedDocument);
         const res = await this.resources.fetchResourceAsync(documentName);
+        // 3.0.0: a newer launch superseded this one while the fetch was in flight. Without this check a
+        // stale launch still unloads the document and rewrites activeDocument, so the page that opens
+        // last wins regardless of which the user asked for (launchToken was captured but never compared).
+        if (token !== this.launchToken) {
+            this.logger.debug(`launchDocument: stale launch discarded`, documentName);
+            this.resources.diagnostics.setPhase(token, "superseded", this.resources.activeDocument, normalizedDocument);
+            return;
+        }
         if (res == null) {
+            this.resources.diagnostics.setPhase(token, "failed", this.resources.activeDocument, normalizedDocument, "document not found");
+            this.logger.error(`NOT FOUND`);
+            // fail() already performs the quit transition; awaiting it and then quitting again
+            // started the startup transition twice on a failed fetch.
             if (normalizedDocument.startsWith("http")) {
-                this.fail("ネットワークエラー", "文書の取得に失敗しました", "E400");
+                await this.fail("ネットワークエラー", "文書の取得に失敗しました", "E400");
             }
-            this.logger.error(`${this.logger.prefix}NOT FOUND`);
-            await this.quitDocument();
-            return NaN;
+            else {
+                await this.quitDocument();
+            }
+            return;
         }
         const ad = this.resources.activeDocument;
-        await this.loadDocument(res, normalizedDocument);
-        this.logger.debug(`${this.logger.prefix}return `, ad, documentName);
-        return NaN;
+        await this.loadDocument(res, normalizedDocument, token);
+        this.logger.debug(`return `, ad, documentName);
+        return;
     }
     findNavIndex(navIndex) {
         return Array.from(this.documentElement.querySelectorAll("*")).find(elem => {
@@ -962,7 +1159,7 @@ class Content {
         };
         this.keyProcessStatus = keyProcessStatus;
         let focusElement = this.bmlDocument.currentFocus?.["node"];
-        if (this.resources.profile === resource_1.Profile.TrProfileC) {
+        if (this.resources.profile === profile_1.Profile.TrProfileC) {
             if (k == AribKeyCode.Left || k == AribKeyCode.Right || k == AribKeyCode.Up || k == AribKeyCode.Down) {
                 if (focusElement == null) {
                     this.focusFirstNavIndex();
@@ -991,25 +1188,7 @@ class Content {
                 }
             }
         }
-        const body = this.getBody();
-        if (body == null) {
-            return;
-        }
-        const computedStyle = window.getComputedStyle(body);
-        const usedKeyList = computedStyle.getPropertyValue("--used-key-list").split(" ").filter(x => x.length);
-        if (usedKeyList.length && usedKeyList[0] === "none") {
-            return;
-        }
-        const keyGroup = (this.resources.profile === resource_1.Profile.TrProfileC ? keyCodeToKeyGroupCProfile : keyCodeToKeyGroup).get(k);
-        if (keyGroup == null) {
-            return;
-        }
-        if (usedKeyList.length === 0) {
-            if (keyGroup !== "basic" && keyGroup !== "data-button") {
-                return;
-            }
-        }
-        else if (!usedKeyList.some(x => x === keyGroup)) {
+        if (!this.isKeyGroupEnabled(k)) {
             return;
         }
         focusElement = this.bmlDocument.currentFocus?.["node"];
@@ -1022,17 +1201,8 @@ class Content {
                     type: "keydown",
                     target,
                 });
-                let exit = false;
-                try {
-                    this.eventQueue.lockSyncEventQueue();
-                    if (exit = await this.eventQueue.executeEventHandler(onkeydown)) {
-                        return true;
-                    }
-                }
-                finally {
-                    if (!exit) {
-                        this.eventQueue.unlockSyncEventQueue();
-                    }
+                if (await this.runHandlerLocked(onkeydown)) {
+                    return true;
                 }
                 this.eventDispatcher.resetCurrentEvent();
             }
@@ -1042,7 +1212,7 @@ class Content {
                 const elem = this.documentElement.querySelector(`[accesskey="${accessKey}"]`);
                 if (elem != null && this.isFocusable(elem)) {
                     this.focusHelper(elem);
-                    this.logger.warn(`${this.logger.prefix}accesskey is half implemented.`);
+                    this.logger.warn(`accesskey is half implemented.`);
                     // [6] 疑似的にkeyup割り込み事象が発生 keyCode = アクセスキー
                     const onkeyup = elem.getAttribute("onkeyup");
                     if (onkeyup != null) {
@@ -1051,40 +1221,23 @@ class Content {
                             type: "keyup",
                             target: elem,
                         });
-                        let exit = false;
-                        try {
-                            this.eventQueue.lockSyncEventQueue();
-                            if (exit = await this.eventQueue.executeEventHandler(onkeyup)) {
-                                return true;
-                            }
-                        }
-                        finally {
-                            if (!exit) {
-                                this.eventQueue.unlockSyncEventQueue();
-                            }
+                        if (await this.runHandlerLocked(onkeyup)) {
+                            return true;
                         }
                         this.eventDispatcher.resetCurrentEvent();
                     }
                     // [6] 疑似的にkeydown割り込み事象が発生 keyCode = 決定キー
                     const onkeydown = elem.getAttribute("onkeydown");
-                    k = AribKeyCode.Enter;
                     if (onkeydown != null) {
                         this.eventDispatcher.setCurrentIntrinsicEvent({
-                            keyCode: k,
+                            // A local rather than reassigning `k`: rewriting the parameter meant every
+                            // later branch saw Enter instead of the key the user actually pressed.
+                            keyCode: AribKeyCode.Enter,
                             type: "keydown",
                             target: elem,
                         });
-                        let exit = false;
-                        try {
-                            this.eventQueue.lockSyncEventQueue();
-                            if (exit = await this.eventQueue.executeEventHandler(onkeydown)) {
-                                return true;
-                            }
-                        }
-                        finally {
-                            if (!exit) {
-                                this.eventQueue.unlockSyncEventQueue();
-                            }
+                        if (await this.runHandlerLocked(onkeydown)) {
+                            return true;
                         }
                         this.eventDispatcher.resetCurrentEvent();
                     }
@@ -1101,23 +1254,26 @@ class Content {
                 focusElement = currentFocus["node"];
                 currentFocus.internalSetActive(true);
                 this.eventQueue.queueSyncEvent({ type: "click", target: focusElement });
-                if (this.bmlDocument.currentFocus instanceof DOM_1.BML.BMLInputElement) {
+                if (this.bmlDocument.currentFocus instanceof bml_dom_1.BML.BMLInputElement) {
                     const inputMode = focusElement.getAttribute("inputmode");
                     if (inputMode === "indirect") {
                         this.bmlDocument.currentFocus.internalLaunchInputApplication();
                     }
-                    else if (this.resources.profile === resource_1.Profile.TrProfileC) {
+                    else if (this.resources.profile === profile_1.Profile.TrProfileC) {
                         this.bmlDocument.currentFocus.internalLaunchInputApplication();
                     }
                 }
-                if (currentFocus instanceof DOM_1.BML.BMLAnchorElement && currentFocus.href != "") {
-                    if (!currentFocus.href.startsWith("#")) {
-                        if (this.launchDocument(currentFocus.href)) {
-                            return true;
-                        }
+                if (currentFocus instanceof bml_dom_1.BML.BMLAnchorElement && currentFocus.href != "") {
+                    const href = currentFocus.href;
+                    if (!href.startsWith("#")) {
+                        // The document is going away, so this handler cannot act on it; returning true
+                        // stops the current page's processing, and a failed launch is logged rather
+                        // than becoming an unhandled rejection.
+                        this.launchDocument(href).catch((e) => this.logger.error(`launchDocument failed`, href, e));
+                        return true;
                     }
                     else {
-                        this.focusFragment(currentFocus.href);
+                        this.focusFragment(href);
                     }
                 }
             }
@@ -1129,6 +1285,9 @@ class Content {
     focusNextNavIndex(k, focusElement) {
         let nextFocus = "";
         let nextFocusStyle = window.getComputedStyle(focusElement);
+        // Each hop is visited at most once: a --nav-* cycle of non-focusable elements (or an element
+        // pointing at itself) used to spin here forever on a keydown, hanging the main thread.
+        const visited = new Set();
         while (true) {
             if (k == AribKeyCode.Left) {
                 nextFocus = nextFocusStyle.getPropertyValue("--nav-left");
@@ -1145,7 +1304,8 @@ class Content {
             const nextFocusIndex = parseInt(nextFocus);
             if (Number.isFinite(nextFocusIndex) && nextFocusIndex >= 0 && nextFocusIndex <= 32767) {
                 const next = this.findNavIndex(nextFocusIndex);
-                if (next != null) {
+                if (next != null && !visited.has(next)) {
+                    visited.add(next);
                     nextFocusStyle = window.getComputedStyle(next);
                     // 非表示要素であれば飛ばされる (STD-B24 第二分冊 (1/2 第二編) 5.4.13.3参照)
                     if (!this.isFocusable(next)) {
@@ -1203,25 +1363,7 @@ class Content {
             if (keyCode === AribKeyCode.Enter) {
                 currentFocus.internalSetFocus(true);
             }
-            const body = this.getBody();
-            if (body == null) {
-                return false;
-            }
-            const computedStyle = window.getComputedStyle(body);
-            const usedKeyList = computedStyle.getPropertyValue("--used-key-list").split(" ").filter(x => x.length);
-            if (usedKeyList.length && usedKeyList[0] === "none") {
-                return false;
-            }
-            const keyGroup = (this.resources.profile === resource_1.Profile.TrProfileC ? keyCodeToKeyGroupCProfile : keyCodeToKeyGroup).get(keyCode);
-            if (keyGroup == null) {
-                return false;
-            }
-            if (usedKeyList.length === 0) {
-                if (keyGroup !== "basic" && keyGroup !== "data-button") {
-                    return false;
-                }
-            }
-            else if (!usedKeyList.some(x => x === keyGroup)) {
+            if (!this.isKeyGroupEnabled(keyCode)) {
                 return false;
             }
             const onkeyup = focusElement.getAttribute("onkeyup");
@@ -1231,17 +1373,8 @@ class Content {
                     type: "keyup",
                     target: focusElement,
                 });
-                let exit = false;
-                try {
-                    this.eventQueue.lockSyncEventQueue();
-                    if (exit = await this.eventQueue.executeEventHandler(onkeyup)) {
-                        return true;
-                    }
-                }
-                finally {
-                    if (!exit) {
-                        this.eventQueue.unlockSyncEventQueue();
-                    }
+                if (await this.runHandlerLocked(onkeyup)) {
+                    return true;
                 }
                 this.eventDispatcher.resetCurrentEvent();
             }
@@ -1265,9 +1398,9 @@ class Content {
     }
     async getCLUT(clutUrl) {
         const res = await this.resources.fetchResourceAsync(clutUrl);
-        let clut = default_clut_1.defaultCLUT;
+        let clut = (0, clut_1.defaultCLUTTable)();
         if (res?.data) {
-            clut = (0, clut_1.readCLUT)(res.data, this.logger);
+            clut = (0, clut_2.readCLUT)(res.data, this.logger);
         }
         return this.clutToDecls(clut);
     }
@@ -1288,22 +1421,22 @@ class Content {
             return bt709;
         }
         catch (e) {
-            this.logger.error(`${this.logger.prefix}failed to decode image`, url, e);
+            this.logger.error(`failed to decode image`, url, e);
             return undefined;
         }
     }
     loadObjects() {
         this.documentElement.querySelectorAll("object").forEach(obj => {
             const adata = obj.getAttribute("arib-data");
-            DOM_1.BML.nodeToBMLNode(obj, this.bmlDocument).data = adata;
+            bml_dom_1.BML.nodeToBMLNode(obj, this.bmlDocument).data = adata;
         });
-        if (this.resources.profile === resource_1.Profile.TrProfileC) {
+        if (this.resources.profile === profile_1.Profile.TrProfileC) {
             this.documentElement.querySelectorAll("img").forEach(obj => {
                 const asrc = obj.getAttribute("arib-src");
                 if (!asrc) {
                     return;
                 }
-                DOM_1.BML.nodeToBMLNode(obj, this.bmlDocument).src = asrc;
+                bml_dom_1.BML.nodeToBMLNode(obj, this.bmlDocument).src = asrc;
             });
         }
     }
@@ -1367,11 +1500,11 @@ class Content {
                             scaleDenominator: nptReference.scaleDenominator,
                             scaleNumerator: nptReference.scaleNumerator,
                         };
-                        this.logger.debug(`${this.logger.prefix}NPTReferred`, this.npt);
+                        this.logger.debug(`NPTReferred`, this.npt);
                     }
                     const nptReferred = this.documentElement.querySelectorAll("beitem[type=\"NPTReferred\"][subscribe=\"subscribe\"]");
                     for (const beitemNative of Array.from(nptReferred)) {
-                        const beitem = DOM_1.BML.nodeToBMLNode(beitemNative, this.bmlDocument);
+                        const beitem = bml_dom_1.BML.nodeToBMLNode(beitemNative, this.bmlDocument);
                         if (!beitem.subscribe) {
                             continue;
                         }
@@ -1381,7 +1514,7 @@ class Content {
                         const es_ref = beitem.esRef;
                         // STD-B24的には未指定の時現在のコンポーネントだけど運用規定的には独立したコンポーネントで伝送される
                         let componentId = activeComponentId;
-                        if (es_ref != null) {
+                        if (es_ref != null && es_ref !== "") {
                             const esRefComponentId = this.resources.parseURLEx(es_ref).componentId;
                             if (esRefComponentId != null) {
                                 componentId = esRefComponentId;
@@ -1414,7 +1547,7 @@ class Content {
             }
             const eventMessageFired = this.documentElement.querySelectorAll("beitem[type=\"EventMessageFired\"][subscribe=\"subscribe\"]");
             eventMessageFired.forEach((beitemNative) => {
-                const beitem = DOM_1.BML.nodeToBMLNode(beitemNative, this.bmlDocument);
+                const beitem = bml_dom_1.BML.nodeToBMLNode(beitemNative, this.bmlDocument);
                 if (!beitem.subscribe) {
                     return;
                 }
@@ -1429,7 +1562,7 @@ class Content {
                     return;
                 }
                 let componentId = activeComponentId;
-                if (es_ref != null) {
+                if (es_ref != null && es_ref !== "") {
                     const esRefComponentId = this.resources.parseURLEx(es_ref).componentId;
                     if (esRefComponentId != null) {
                         componentId = esRefComponentId;
@@ -1472,7 +1605,7 @@ class Content {
                     }
                     beitem.internalMessageVersion.set(eventMessageId, eventMessageVersion);
                     const privateData = this.decodeText(Uint8Array.from(event.privateDataByte));
-                    this.logger.debug(`${this.logger.prefix}EventMessageFired`, eventMessageId, eventMessageVersion, privateData);
+                    this.logger.debug(`EventMessageFired`, eventMessageId, eventMessageVersion, privateData);
                     this.eventQueue.queueAsyncEvent(async () => {
                         this.eventDispatcher.setCurrentBeventEvent({
                             type: "EventMessageFired",
@@ -1501,6 +1634,61 @@ class Content {
     loadDRCS(glyphs) {
         this.bmlDocument.internalLoadDRCS(glyphs);
     }
+    /**
+     * P1: the page as the host can see it — what document is up, what phase it is in, and every
+     * beitem subscription with the number of times its handler actually ran. A subscription that
+     * has never fired is the single most common reason a page sits on 読み込み中, and before this
+     * the host had no way to tell it apart from a page that simply looks like that.
+     */
+    inspect() {
+        const diagnostics = this.resources.diagnostics;
+        const events = diagnostics.describeEvents();
+        const key = (ref) => {
+            if (ref == null || ref.length === 0) {
+                return null;
+            }
+            const { componentId, moduleId } = this.resources.parseURLEx(ref);
+            return componentId != null && moduleId != null
+                ? `${componentId.toString(16)}/${moduleId.toString(16)}`
+                : ref.toLowerCase();
+        };
+        const beitems = [];
+        for (const node of Array.from(this.documentElement.querySelectorAll("beitem"))) {
+            const elem = node;
+            const type = elem.getAttribute("type") ?? "";
+            const ref = elem.getAttribute("module_ref") ?? elem.getAttribute("es_ref");
+            const refKey = key(ref);
+            let fired = 0;
+            for (const record of events) {
+                if (record.type === type && key(record.target) === refKey) {
+                    fired++;
+                }
+            }
+            beitems.push({
+                type,
+                ref,
+                subscribe: elem.getAttribute("subscribe") === "subscribe",
+                hasHandler: elem.getAttribute("onoccur") != null,
+                fired,
+            });
+        }
+        const phase = diagnostics.describePhase();
+        const body = this.getBody();
+        return {
+            document: this.resources.activeDocument,
+            requested: phase.requested,
+            phase: phase.phase,
+            phaseAgeMs: phase.ageMs,
+            detail: phase.detail,
+            resolution: diagnostics.describeResolution(),
+            profile: (0, profile_1.profileLetter)(this.resources.profile),
+            bodyLoading: body?.hasAttribute("arib-loading") ?? false,
+            startupDelivered: this.loaded,
+            invisible: this.invisible,
+            elements: this.documentElement.querySelectorAll("*").length,
+            beitems,
+        };
+    }
     addDRCSFont(font) {
         this.fonts.push(font);
         document.fonts.add(font);
@@ -1510,7 +1698,7 @@ class Content {
         if (body == null) {
             return undefined;
         }
-        return DOM_1.BML.nodeToBMLNode(body, this.bmlDocument).invisible;
+        return bml_dom_1.BML.nodeToBMLNode(body, this.bmlDocument).invisible;
     }
     defaultShowErrorMessage(title, message, code) {
         const errorDialog = document.createElement("div");

@@ -1,6 +1,6 @@
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 import { Caller, Context, InterpreterObject, InterpreterTypeError, isPrimitive, newNativeFunction, newObject, toBoolean, toNumber, toString, Value, defaultPutProperty } from "../../es2";
-import { BML } from "../interface/DOM";
+import { BML } from "../dom/bml_dom";
 
 export function define(context: Context, prototypes: Map<any, InterpreterObject>, map: WeakMap<any, InterpreterObject>) {
     const $Node$prototype = newObject(context.realm.intrinsics.ObjectPrototype);

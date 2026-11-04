@@ -1,0 +1,19 @@
+#!/bin/sh
+# Pre-push gate: the release check runs before anything leaves this clone.
+#
+# Installed by `npm run hooks` into .git/hooks/pre-push. It reads the refs git is about to push, and if
+# one of them is a release tag (refs/tags/vX.Y.Z) it checks that exact tag against package.json; otherwise
+# it runs the plain check (private references, one version in four places, manifests, organised files).
+set -eu
+tag=""
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+    case "$remote_ref" in
+        refs/tags/v[0-9]*)
+            tag=${remote_ref#refs/tags/}
+            ;;
+    esac
+done
+if [ -n "$tag" ]; then
+    exec node tools/publish-check.mjs --tag "$tag"
+fi
+exec node tools/publish-check.mjs

@@ -4,13 +4,13 @@ exports.define = define;
 exports.wrap = wrap;
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 const es2_1 = require("../../es2");
-const DOM_1 = require("../interface/DOM");
+const bml_dom_1 = require("../dom/bml_dom");
 function define(context, prototypes, map) {
     const $Node$prototype = (0, es2_1.newObject)(context.realm.intrinsics.ObjectPrototype);
-    prototypes.set(DOM_1.BML.Node.prototype, $Node$prototype);
+    prototypes.set(bml_dom_1.BML.Node.prototype, $Node$prototype);
     $Node$prototype.internalProperties.class = "Node";
     $Node$prototype.internalProperties.get = function* $Node$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.Node)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.Node)) {
             throw new es2_1.InterpreterTypeError(`Node.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -28,7 +28,7 @@ function define(context, prototypes, map) {
         return $Node$prototype.properties.get(propertyName)?.value;
     };
     function* $Node$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.Node)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.Node)) {
             throw new es2_1.InterpreterTypeError(`Node.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -78,10 +78,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $Document$prototype = (0, es2_1.newObject)($Node$prototype);
-    prototypes.set(DOM_1.BML.Document.prototype, $Document$prototype);
+    prototypes.set(bml_dom_1.BML.Document.prototype, $Document$prototype);
     $Document$prototype.internalProperties.class = "Document";
     $Document$prototype.internalProperties.get = function* $Document$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.Document)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.Document)) {
             throw new es2_1.InterpreterTypeError(`Document.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -93,7 +93,7 @@ function define(context, prototypes, map) {
         return $Document$prototype.properties.get(propertyName)?.value;
     };
     function* $Document$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.Document)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.Document)) {
             throw new es2_1.InterpreterTypeError(`Document.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -120,10 +120,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLDocument$prototype = (0, es2_1.newObject)($Document$prototype);
-    prototypes.set(DOM_1.BML.HTMLDocument.prototype, $HTMLDocument$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLDocument.prototype, $HTMLDocument$prototype);
     $HTMLDocument$prototype.internalProperties.class = "HTMLDocument";
     $HTMLDocument$prototype.internalProperties.get = function* $HTMLDocument$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLDocument)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLDocument)) {
             throw new es2_1.InterpreterTypeError(`HTMLDocument.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -131,7 +131,7 @@ function define(context, prototypes, map) {
         return $HTMLDocument$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLDocument$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLDocument)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLDocument)) {
             throw new es2_1.InterpreterTypeError(`HTMLDocument.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -146,17 +146,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $HTMLDocument$prototype$getElementById(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLDocument)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLDocument)) {
                 throw new es2_1.InterpreterTypeError("HTMLDocument.prototype.getElementById: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.getElementById(yield* (0, es2_1.toString)(ctx, args[0], caller)));
         }, 1, "getElementById"),
     });
     const $BMLDocument$prototype = (0, es2_1.newObject)($HTMLDocument$prototype);
-    prototypes.set(DOM_1.BML.BMLDocument.prototype, $BMLDocument$prototype);
+    prototypes.set(bml_dom_1.BML.BMLDocument.prototype, $BMLDocument$prototype);
     $BMLDocument$prototype.internalProperties.class = "BMLDocument";
     $BMLDocument$prototype.internalProperties.get = function* $BMLDocument$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLDocument)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLDocument)) {
             throw new es2_1.InterpreterTypeError(`BMLDocument.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -168,7 +168,7 @@ function define(context, prototypes, map) {
         return $BMLDocument$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLDocument$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLDocument)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLDocument)) {
             throw new es2_1.InterpreterTypeError(`BMLDocument.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -195,10 +195,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $Element$prototype = (0, es2_1.newObject)($Node$prototype);
-    prototypes.set(DOM_1.BML.Element.prototype, $Element$prototype);
+    prototypes.set(bml_dom_1.BML.Element.prototype, $Element$prototype);
     $Element$prototype.internalProperties.class = "Element";
     $Element$prototype.internalProperties.get = function* $Element$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.Element)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.Element)) {
             throw new es2_1.InterpreterTypeError(`Element.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -208,7 +208,7 @@ function define(context, prototypes, map) {
         return $Element$prototype.properties.get(propertyName)?.value;
     };
     function* $Element$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.Element)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.Element)) {
             throw new es2_1.InterpreterTypeError(`Element.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -227,10 +227,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLElement$prototype = (0, es2_1.newObject)($Element$prototype);
-    prototypes.set(DOM_1.BML.HTMLElement.prototype, $HTMLElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLElement.prototype, $HTMLElement$prototype);
     $HTMLElement$prototype.internalProperties.class = "HTMLElement";
     $HTMLElement$prototype.internalProperties.get = function* $HTMLElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -242,7 +242,7 @@ function define(context, prototypes, map) {
         return $HTMLElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -269,10 +269,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLDivElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLDivElement.prototype, $HTMLDivElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLDivElement.prototype, $HTMLDivElement$prototype);
     $HTMLDivElement$prototype.internalProperties.class = "HTMLDivElement";
     $HTMLDivElement$prototype.internalProperties.get = function* $HTMLDivElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLDivElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLDivElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLDivElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -280,7 +280,7 @@ function define(context, prototypes, map) {
         return $HTMLDivElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLDivElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLDivElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLDivElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLDivElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -291,10 +291,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLDivElement$prototype.internalProperties.put = $HTMLDivElement$put;
     const $BMLDivElement$prototype = (0, es2_1.newObject)($HTMLDivElement$prototype);
-    prototypes.set(DOM_1.BML.BMLDivElement.prototype, $BMLDivElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLDivElement.prototype, $BMLDivElement$prototype);
     $BMLDivElement$prototype.internalProperties.class = "BMLDivElement";
     $BMLDivElement$prototype.internalProperties.get = function* $BMLDivElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLDivElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLDivElement)) {
             throw new es2_1.InterpreterTypeError(`BMLDivElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -310,7 +310,7 @@ function define(context, prototypes, map) {
         return $BMLDivElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLDivElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLDivElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLDivElement)) {
             throw new es2_1.InterpreterTypeError(`BMLDivElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -357,7 +357,7 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLDivElement$prototype$focus(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLDivElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLDivElement)) {
                 throw new es2_1.InterpreterTypeError("BMLDivElement.prototype.focus: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.focus());
@@ -368,17 +368,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLDivElement$prototype$blur(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLDivElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLDivElement)) {
                 throw new es2_1.InterpreterTypeError("BMLDivElement.prototype.blur: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.blur());
         }, 0, "blur"),
     });
     const $BMLSpanElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.BMLSpanElement.prototype, $BMLSpanElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLSpanElement.prototype, $BMLSpanElement$prototype);
     $BMLSpanElement$prototype.internalProperties.class = "BMLSpanElement";
     $BMLSpanElement$prototype.internalProperties.get = function* $BMLSpanElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLSpanElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLSpanElement)) {
             throw new es2_1.InterpreterTypeError(`BMLSpanElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -394,7 +394,7 @@ function define(context, prototypes, map) {
         return $BMLSpanElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLSpanElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLSpanElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLSpanElement)) {
             throw new es2_1.InterpreterTypeError(`BMLSpanElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -441,7 +441,7 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLSpanElement$prototype$focus(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLSpanElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLSpanElement)) {
                 throw new es2_1.InterpreterTypeError("BMLSpanElement.prototype.focus: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.focus());
@@ -452,17 +452,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLSpanElement$prototype$blur(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLSpanElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLSpanElement)) {
                 throw new es2_1.InterpreterTypeError("BMLSpanElement.prototype.blur: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.blur());
         }, 0, "blur"),
     });
     const $HTMLParagraphElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLParagraphElement.prototype, $HTMLParagraphElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLParagraphElement.prototype, $HTMLParagraphElement$prototype);
     $HTMLParagraphElement$prototype.internalProperties.class = "HTMLParagraphElement";
     $HTMLParagraphElement$prototype.internalProperties.get = function* $HTMLParagraphElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLParagraphElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLParagraphElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLParagraphElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -470,7 +470,7 @@ function define(context, prototypes, map) {
         return $HTMLParagraphElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLParagraphElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLParagraphElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLParagraphElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLParagraphElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -481,10 +481,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLParagraphElement$prototype.internalProperties.put = $HTMLParagraphElement$put;
     const $BMLParagraphElement$prototype = (0, es2_1.newObject)($HTMLParagraphElement$prototype);
-    prototypes.set(DOM_1.BML.BMLParagraphElement.prototype, $BMLParagraphElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLParagraphElement.prototype, $BMLParagraphElement$prototype);
     $BMLParagraphElement$prototype.internalProperties.class = "BMLParagraphElement";
     $BMLParagraphElement$prototype.internalProperties.get = function* $BMLParagraphElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLParagraphElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLParagraphElement)) {
             throw new es2_1.InterpreterTypeError(`BMLParagraphElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -500,7 +500,7 @@ function define(context, prototypes, map) {
         return $BMLParagraphElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLParagraphElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLParagraphElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLParagraphElement)) {
             throw new es2_1.InterpreterTypeError(`BMLParagraphElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -547,7 +547,7 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLParagraphElement$prototype$focus(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLParagraphElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLParagraphElement)) {
                 throw new es2_1.InterpreterTypeError("BMLParagraphElement.prototype.focus: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.focus());
@@ -558,17 +558,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLParagraphElement$prototype$blur(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLParagraphElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLParagraphElement)) {
                 throw new es2_1.InterpreterTypeError("BMLParagraphElement.prototype.blur: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.blur());
         }, 0, "blur"),
     });
     const $HTMLBRElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLBRElement.prototype, $HTMLBRElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLBRElement.prototype, $HTMLBRElement$prototype);
     $HTMLBRElement$prototype.internalProperties.class = "HTMLBRElement";
     $HTMLBRElement$prototype.internalProperties.get = function* $HTMLBRElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLBRElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLBRElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLBRElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -576,7 +576,7 @@ function define(context, prototypes, map) {
         return $HTMLBRElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLBRElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLBRElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLBRElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLBRElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -587,10 +587,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLBRElement$prototype.internalProperties.put = $HTMLBRElement$put;
     const $BMLBRElement$prototype = (0, es2_1.newObject)($HTMLBRElement$prototype);
-    prototypes.set(DOM_1.BML.BMLBRElement.prototype, $BMLBRElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLBRElement.prototype, $BMLBRElement$prototype);
     $BMLBRElement$prototype.internalProperties.class = "BMLBRElement";
     $BMLBRElement$prototype.internalProperties.get = function* $BMLBRElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBRElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBRElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBRElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -600,7 +600,7 @@ function define(context, prototypes, map) {
         return $BMLBRElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLBRElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBRElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBRElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBRElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -619,10 +619,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLAnchorElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLAnchorElement.prototype, $HTMLAnchorElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLAnchorElement.prototype, $HTMLAnchorElement$prototype);
     $HTMLAnchorElement$prototype.internalProperties.class = "HTMLAnchorElement";
     $HTMLAnchorElement$prototype.internalProperties.get = function* $HTMLAnchorElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLAnchorElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLAnchorElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLAnchorElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -634,7 +634,7 @@ function define(context, prototypes, map) {
         return $HTMLAnchorElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLAnchorElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLAnchorElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLAnchorElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLAnchorElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -666,7 +666,7 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $HTMLAnchorElement$prototype$blur(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLAnchorElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLAnchorElement)) {
                 throw new es2_1.InterpreterTypeError("HTMLAnchorElement.prototype.blur: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.blur());
@@ -677,17 +677,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $HTMLAnchorElement$prototype$focus(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLAnchorElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLAnchorElement)) {
                 throw new es2_1.InterpreterTypeError("HTMLAnchorElement.prototype.focus: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.focus());
         }, 0, "focus"),
     });
     const $BMLAnchorElement$prototype = (0, es2_1.newObject)($HTMLAnchorElement$prototype);
-    prototypes.set(DOM_1.BML.BMLAnchorElement.prototype, $BMLAnchorElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLAnchorElement.prototype, $BMLAnchorElement$prototype);
     $BMLAnchorElement$prototype.internalProperties.class = "BMLAnchorElement";
     $BMLAnchorElement$prototype.internalProperties.get = function* $BMLAnchorElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLAnchorElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLAnchorElement)) {
             throw new es2_1.InterpreterTypeError(`BMLAnchorElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -701,7 +701,7 @@ function define(context, prototypes, map) {
         return $BMLAnchorElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLAnchorElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLAnchorElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLAnchorElement)) {
             throw new es2_1.InterpreterTypeError(`BMLAnchorElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -736,10 +736,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLInputElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLInputElement.prototype, $HTMLInputElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLInputElement.prototype, $HTMLInputElement$prototype);
     $HTMLInputElement$prototype.internalProperties.class = "HTMLInputElement";
     $HTMLInputElement$prototype.internalProperties.get = function* $HTMLInputElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLInputElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLInputElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLInputElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -761,7 +761,7 @@ function define(context, prototypes, map) {
         return $HTMLInputElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLInputElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLInputElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLInputElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLInputElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -835,7 +835,7 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $HTMLInputElement$prototype$blur(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLInputElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLInputElement)) {
                 throw new es2_1.InterpreterTypeError("HTMLInputElement.prototype.blur: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.blur());
@@ -846,17 +846,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $HTMLInputElement$prototype$focus(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLInputElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLInputElement)) {
                 throw new es2_1.InterpreterTypeError("HTMLInputElement.prototype.focus: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.focus());
         }, 0, "focus"),
     });
     const $BMLInputElement$prototype = (0, es2_1.newObject)($HTMLInputElement$prototype);
-    prototypes.set(DOM_1.BML.BMLInputElement.prototype, $BMLInputElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLInputElement.prototype, $BMLInputElement$prototype);
     $BMLInputElement$prototype.internalProperties.class = "BMLInputElement";
     $BMLInputElement$prototype.internalProperties.get = function* $BMLInputElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLInputElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLInputElement)) {
             throw new es2_1.InterpreterTypeError(`BMLInputElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -870,7 +870,7 @@ function define(context, prototypes, map) {
         return $BMLInputElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLInputElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLInputElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLInputElement)) {
             throw new es2_1.InterpreterTypeError(`BMLInputElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -905,10 +905,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLObjectElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLObjectElement.prototype, $HTMLObjectElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLObjectElement.prototype, $HTMLObjectElement$prototype);
     $HTMLObjectElement$prototype.internalProperties.class = "HTMLObjectElement";
     $HTMLObjectElement$prototype.internalProperties.get = function* $HTMLObjectElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLObjectElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLObjectElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLObjectElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -920,7 +920,7 @@ function define(context, prototypes, map) {
         return $HTMLObjectElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLObjectElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLObjectElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLObjectElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLObjectElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -948,10 +948,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $BMLObjectElement$prototype = (0, es2_1.newObject)($HTMLObjectElement$prototype);
-    prototypes.set(DOM_1.BML.BMLObjectElement.prototype, $BMLObjectElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLObjectElement.prototype, $BMLObjectElement$prototype);
     $BMLObjectElement$prototype.internalProperties.class = "BMLObjectElement";
     $BMLObjectElement$prototype.internalProperties.get = function* $BMLObjectElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLObjectElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLObjectElement)) {
             throw new es2_1.InterpreterTypeError(`BMLObjectElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -973,7 +973,7 @@ function define(context, prototypes, map) {
         return $BMLObjectElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLObjectElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLObjectElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLObjectElement)) {
             throw new es2_1.InterpreterTypeError(`BMLObjectElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1041,7 +1041,7 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLObjectElement$prototype$setMainAudioStream(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLObjectElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLObjectElement)) {
                 throw new es2_1.InterpreterTypeError("BMLObjectElement.prototype.setMainAudioStream: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.setMainAudioStream(yield* (0, es2_1.toString)(ctx, args[0], caller)));
@@ -1052,7 +1052,7 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLObjectElement$prototype$getMainAudioStream(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLObjectElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLObjectElement)) {
                 throw new es2_1.InterpreterTypeError("BMLObjectElement.prototype.getMainAudioStream: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.getMainAudioStream());
@@ -1069,7 +1069,7 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLObjectElement$prototype$focus(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLObjectElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLObjectElement)) {
                 throw new es2_1.InterpreterTypeError("BMLObjectElement.prototype.focus: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.focus());
@@ -1080,17 +1080,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $BMLObjectElement$prototype$blur(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLObjectElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLObjectElement)) {
                 throw new es2_1.InterpreterTypeError("BMLObjectElement.prototype.blur: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.blur());
         }, 0, "blur"),
     });
     const $HTMLBodyElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLBodyElement.prototype, $HTMLBodyElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLBodyElement.prototype, $HTMLBodyElement$prototype);
     $HTMLBodyElement$prototype.internalProperties.class = "HTMLBodyElement";
     $HTMLBodyElement$prototype.internalProperties.get = function* $HTMLBodyElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLBodyElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLBodyElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLBodyElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1098,7 +1098,7 @@ function define(context, prototypes, map) {
         return $HTMLBodyElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLBodyElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLBodyElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLBodyElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLBodyElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1109,10 +1109,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLBodyElement$prototype.internalProperties.put = $HTMLBodyElement$put;
     const $BMLBodyElement$prototype = (0, es2_1.newObject)($HTMLBodyElement$prototype);
-    prototypes.set(DOM_1.BML.BMLBodyElement.prototype, $BMLBodyElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLBodyElement.prototype, $BMLBodyElement$prototype);
     $BMLBodyElement$prototype.internalProperties.class = "BMLBodyElement";
     $BMLBodyElement$prototype.internalProperties.get = function* $BMLBodyElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBodyElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBodyElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBodyElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1124,7 +1124,7 @@ function define(context, prototypes, map) {
         return $BMLBodyElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLBodyElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBodyElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBodyElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBodyElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1152,10 +1152,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLHtmlElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLHtmlElement.prototype, $HTMLHtmlElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLHtmlElement.prototype, $HTMLHtmlElement$prototype);
     $HTMLHtmlElement$prototype.internalProperties.class = "HTMLHtmlElement";
     $HTMLHtmlElement$prototype.internalProperties.get = function* $HTMLHtmlElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLHtmlElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLHtmlElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLHtmlElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1163,7 +1163,7 @@ function define(context, prototypes, map) {
         return $HTMLHtmlElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLHtmlElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLHtmlElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLHtmlElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLHtmlElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1174,10 +1174,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLHtmlElement$prototype.internalProperties.put = $HTMLHtmlElement$put;
     const $BMLBmlElement$prototype = (0, es2_1.newObject)($HTMLHtmlElement$prototype);
-    prototypes.set(DOM_1.BML.BMLBmlElement.prototype, $BMLBmlElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLBmlElement.prototype, $BMLBmlElement$prototype);
     $BMLBmlElement$prototype.internalProperties.class = "BMLBmlElement";
     $BMLBmlElement$prototype.internalProperties.get = function* $BMLBmlElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBmlElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBmlElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBmlElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1185,7 +1185,7 @@ function define(context, prototypes, map) {
         return $BMLBmlElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLBmlElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBmlElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBmlElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBmlElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1196,10 +1196,10 @@ function define(context, prototypes, map) {
     ;
     $BMLBmlElement$prototype.internalProperties.put = $BMLBmlElement$put;
     const $BMLBeventElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.BMLBeventElement.prototype, $BMLBeventElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLBeventElement.prototype, $BMLBeventElement$prototype);
     $BMLBeventElement$prototype.internalProperties.class = "BMLBeventElement";
     $BMLBeventElement$prototype.internalProperties.get = function* $BMLBeventElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBeventElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBeventElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBeventElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1207,7 +1207,7 @@ function define(context, prototypes, map) {
         return $BMLBeventElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLBeventElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBeventElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBeventElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBeventElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1218,10 +1218,10 @@ function define(context, prototypes, map) {
     ;
     $BMLBeventElement$prototype.internalProperties.put = $BMLBeventElement$put;
     const $BMLBeitemElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.BMLBeitemElement.prototype, $BMLBeitemElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLBeitemElement.prototype, $BMLBeitemElement$prototype);
     $BMLBeitemElement$prototype.internalProperties.class = "BMLBeitemElement";
     $BMLBeitemElement$prototype.internalProperties.get = function* $BMLBeitemElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBeitemElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBeitemElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBeitemElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1253,7 +1253,7 @@ function define(context, prototypes, map) {
         return $BMLBeitemElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLBeitemElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBeitemElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBeitemElement)) {
             throw new es2_1.InterpreterTypeError(`BMLBeitemElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1369,10 +1369,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $BMLEvent$prototype = (0, es2_1.newObject)(context.realm.intrinsics.ObjectPrototype);
-    prototypes.set(DOM_1.BML.BMLEvent.prototype, $BMLEvent$prototype);
+    prototypes.set(bml_dom_1.BML.BMLEvent.prototype, $BMLEvent$prototype);
     $BMLEvent$prototype.internalProperties.class = "BMLEvent";
     $BMLEvent$prototype.internalProperties.get = function* $BMLEvent$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLEvent)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLEvent)) {
             throw new es2_1.InterpreterTypeError(`BMLEvent.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1384,7 +1384,7 @@ function define(context, prototypes, map) {
         return $BMLEvent$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLEvent$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLEvent)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLEvent)) {
             throw new es2_1.InterpreterTypeError(`BMLEvent.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1410,10 +1410,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $BMLIntrinsicEvent$prototype = (0, es2_1.newObject)($BMLEvent$prototype);
-    prototypes.set(DOM_1.BML.BMLIntrinsicEvent.prototype, $BMLIntrinsicEvent$prototype);
+    prototypes.set(bml_dom_1.BML.BMLIntrinsicEvent.prototype, $BMLIntrinsicEvent$prototype);
     $BMLIntrinsicEvent$prototype.internalProperties.class = "BMLIntrinsicEvent";
     $BMLIntrinsicEvent$prototype.internalProperties.get = function* $BMLIntrinsicEvent$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLIntrinsicEvent)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLIntrinsicEvent)) {
             throw new es2_1.InterpreterTypeError(`BMLIntrinsicEvent.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1423,7 +1423,7 @@ function define(context, prototypes, map) {
         return $BMLIntrinsicEvent$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLIntrinsicEvent$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLIntrinsicEvent)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLIntrinsicEvent)) {
             throw new es2_1.InterpreterTypeError(`BMLIntrinsicEvent.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1442,10 +1442,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $BMLBeventEvent$prototype = (0, es2_1.newObject)($BMLEvent$prototype);
-    prototypes.set(DOM_1.BML.BMLBeventEvent.prototype, $BMLBeventEvent$prototype);
+    prototypes.set(bml_dom_1.BML.BMLBeventEvent.prototype, $BMLBeventEvent$prototype);
     $BMLBeventEvent$prototype.internalProperties.class = "BMLBeventEvent";
     $BMLBeventEvent$prototype.internalProperties.get = function* $BMLBeventEvent$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBeventEvent)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBeventEvent)) {
             throw new es2_1.InterpreterTypeError(`BMLBeventEvent.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1471,7 +1471,7 @@ function define(context, prototypes, map) {
         return $BMLBeventEvent$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLBeventEvent$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLBeventEvent)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLBeventEvent)) {
             throw new es2_1.InterpreterTypeError(`BMLBeventEvent.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1554,10 +1554,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $BMLCSS2Properties$prototype = (0, es2_1.newObject)(context.realm.intrinsics.ObjectPrototype);
-    prototypes.set(DOM_1.BML.BMLCSS2Properties.prototype, $BMLCSS2Properties$prototype);
+    prototypes.set(bml_dom_1.BML.BMLCSS2Properties.prototype, $BMLCSS2Properties$prototype);
     $BMLCSS2Properties$prototype.internalProperties.class = "BMLCSS2Properties";
     $BMLCSS2Properties$prototype.internalProperties.get = function* $BMLCSS2Properties$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLCSS2Properties)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLCSS2Properties)) {
             throw new es2_1.InterpreterTypeError(`BMLCSS2Properties.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -1651,7 +1651,7 @@ function define(context, prototypes, map) {
         return $BMLCSS2Properties$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLCSS2Properties$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLCSS2Properties)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLCSS2Properties)) {
             throw new es2_1.InterpreterTypeError(`BMLCSS2Properties.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2027,10 +2027,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLPreElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLPreElement.prototype, $HTMLPreElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLPreElement.prototype, $HTMLPreElement$prototype);
     $HTMLPreElement$prototype.internalProperties.class = "HTMLPreElement";
     $HTMLPreElement$prototype.internalProperties.get = function* $HTMLPreElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLPreElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLPreElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLPreElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2038,7 +2038,7 @@ function define(context, prototypes, map) {
         return $HTMLPreElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLPreElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLPreElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLPreElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLPreElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2049,10 +2049,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLPreElement$prototype.internalProperties.put = $HTMLPreElement$put;
     const $BMLPreElement$prototype = (0, es2_1.newObject)($HTMLPreElement$prototype);
-    prototypes.set(DOM_1.BML.BMLPreElement.prototype, $BMLPreElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLPreElement.prototype, $BMLPreElement$prototype);
     $BMLPreElement$prototype.internalProperties.class = "BMLPreElement";
     $BMLPreElement$prototype.internalProperties.get = function* $BMLPreElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLPreElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLPreElement)) {
             throw new es2_1.InterpreterTypeError(`BMLPreElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2062,7 +2062,7 @@ function define(context, prototypes, map) {
         return $BMLPreElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLPreElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLPreElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLPreElement)) {
             throw new es2_1.InterpreterTypeError(`BMLPreElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2081,10 +2081,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLFormElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLFormElement.prototype, $HTMLFormElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLFormElement.prototype, $HTMLFormElement$prototype);
     $HTMLFormElement$prototype.internalProperties.class = "HTMLFormElement";
     $HTMLFormElement$prototype.internalProperties.get = function* $HTMLFormElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLFormElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLFormElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLFormElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2096,7 +2096,7 @@ function define(context, prototypes, map) {
         return $HTMLFormElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLFormElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLFormElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLFormElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLFormElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2128,17 +2128,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $HTMLFormElement$prototype$submit(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLFormElement)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLFormElement)) {
                 throw new es2_1.InterpreterTypeError("HTMLFormElement.prototype.submit: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.submit());
         }, 0, "submit"),
     });
     const $BMLFormElement$prototype = (0, es2_1.newObject)($HTMLFormElement$prototype);
-    prototypes.set(DOM_1.BML.BMLFormElement.prototype, $BMLFormElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLFormElement.prototype, $BMLFormElement$prototype);
     $BMLFormElement$prototype.internalProperties.class = "BMLFormElement";
     $BMLFormElement$prototype.internalProperties.get = function* $BMLFormElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLFormElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLFormElement)) {
             throw new es2_1.InterpreterTypeError(`BMLFormElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2148,7 +2148,7 @@ function define(context, prototypes, map) {
         return $BMLFormElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLFormElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLFormElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLFormElement)) {
             throw new es2_1.InterpreterTypeError(`BMLFormElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2167,10 +2167,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLTextAreaElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLTextAreaElement.prototype, $HTMLTextAreaElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLTextAreaElement.prototype, $HTMLTextAreaElement$prototype);
     $HTMLTextAreaElement$prototype.internalProperties.class = "HTMLTextAreaElement";
     $HTMLTextAreaElement$prototype.internalProperties.get = function* $HTMLTextAreaElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLTextAreaElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLTextAreaElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLTextAreaElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2190,7 +2190,7 @@ function define(context, prototypes, map) {
         return $HTMLTextAreaElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLTextAreaElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLTextAreaElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLTextAreaElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLTextAreaElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2251,10 +2251,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $BMLTextAreaElement$prototype = (0, es2_1.newObject)($HTMLTextAreaElement$prototype);
-    prototypes.set(DOM_1.BML.BMLTextAreaElement.prototype, $BMLTextAreaElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLTextAreaElement.prototype, $BMLTextAreaElement$prototype);
     $BMLTextAreaElement$prototype.internalProperties.class = "BMLTextAreaElement";
     $BMLTextAreaElement$prototype.internalProperties.get = function* $BMLTextAreaElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLTextAreaElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLTextAreaElement)) {
             throw new es2_1.InterpreterTypeError(`BMLTextAreaElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2264,7 +2264,7 @@ function define(context, prototypes, map) {
         return $BMLTextAreaElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLTextAreaElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLTextAreaElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLTextAreaElement)) {
             throw new es2_1.InterpreterTypeError(`BMLTextAreaElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2283,10 +2283,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLImageElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLImageElement.prototype, $HTMLImageElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLImageElement.prototype, $HTMLImageElement$prototype);
     $HTMLImageElement$prototype.internalProperties.class = "HTMLImageElement";
     $HTMLImageElement$prototype.internalProperties.get = function* $HTMLImageElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLImageElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLImageElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLImageElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2298,7 +2298,7 @@ function define(context, prototypes, map) {
         return $HTMLImageElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLImageElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLImageElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLImageElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLImageElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2326,10 +2326,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $BMLImageElement$prototype = (0, es2_1.newObject)($HTMLImageElement$prototype);
-    prototypes.set(DOM_1.BML.BMLImageElement.prototype, $BMLImageElement$prototype);
+    prototypes.set(bml_dom_1.BML.BMLImageElement.prototype, $BMLImageElement$prototype);
     $BMLImageElement$prototype.internalProperties.class = "BMLImageElement";
     $BMLImageElement$prototype.internalProperties.get = function* $BMLImageElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLImageElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLImageElement)) {
             throw new es2_1.InterpreterTypeError(`BMLImageElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2339,7 +2339,7 @@ function define(context, prototypes, map) {
         return $BMLImageElement$prototype.properties.get(propertyName)?.value;
     };
     function* $BMLImageElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.BMLImageElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.BMLImageElement)) {
             throw new es2_1.InterpreterTypeError(`BMLImageElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2358,10 +2358,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLHeadElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLHeadElement.prototype, $HTMLHeadElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLHeadElement.prototype, $HTMLHeadElement$prototype);
     $HTMLHeadElement$prototype.internalProperties.class = "HTMLHeadElement";
     $HTMLHeadElement$prototype.internalProperties.get = function* $HTMLHeadElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLHeadElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLHeadElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLHeadElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2369,7 +2369,7 @@ function define(context, prototypes, map) {
         return $HTMLHeadElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLHeadElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLHeadElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLHeadElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLHeadElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2380,10 +2380,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLHeadElement$prototype.internalProperties.put = $HTMLHeadElement$put;
     const $HTMLTitleElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLTitleElement.prototype, $HTMLTitleElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLTitleElement.prototype, $HTMLTitleElement$prototype);
     $HTMLTitleElement$prototype.internalProperties.class = "HTMLTitleElement";
     $HTMLTitleElement$prototype.internalProperties.get = function* $HTMLTitleElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLTitleElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLTitleElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLTitleElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2393,7 +2393,7 @@ function define(context, prototypes, map) {
         return $HTMLTitleElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLTitleElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLTitleElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLTitleElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLTitleElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2412,10 +2412,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLMetaElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLMetaElement.prototype, $HTMLMetaElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLMetaElement.prototype, $HTMLMetaElement$prototype);
     $HTMLMetaElement$prototype.internalProperties.class = "HTMLMetaElement";
     $HTMLMetaElement$prototype.internalProperties.get = function* $HTMLMetaElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLMetaElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLMetaElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLMetaElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2427,7 +2427,7 @@ function define(context, prototypes, map) {
         return $HTMLMetaElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLMetaElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLMetaElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLMetaElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLMetaElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2454,10 +2454,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $HTMLStyleElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLStyleElement.prototype, $HTMLStyleElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLStyleElement.prototype, $HTMLStyleElement$prototype);
     $HTMLStyleElement$prototype.internalProperties.class = "HTMLStyleElement";
     $HTMLStyleElement$prototype.internalProperties.get = function* $HTMLStyleElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLStyleElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLStyleElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLStyleElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2465,7 +2465,7 @@ function define(context, prototypes, map) {
         return $HTMLStyleElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLStyleElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLStyleElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLStyleElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLStyleElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2476,10 +2476,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLStyleElement$prototype.internalProperties.put = $HTMLStyleElement$put;
     const $HTMLScriptElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLScriptElement.prototype, $HTMLScriptElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLScriptElement.prototype, $HTMLScriptElement$prototype);
     $HTMLScriptElement$prototype.internalProperties.class = "HTMLScriptElement";
     $HTMLScriptElement$prototype.internalProperties.get = function* $HTMLScriptElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLScriptElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLScriptElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLScriptElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2487,7 +2487,7 @@ function define(context, prototypes, map) {
         return $HTMLScriptElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLScriptElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLScriptElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLScriptElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLScriptElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2498,10 +2498,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLScriptElement$prototype.internalProperties.put = $HTMLScriptElement$put;
     const $HTMLLinkElement$prototype = (0, es2_1.newObject)($HTMLElement$prototype);
-    prototypes.set(DOM_1.BML.HTMLLinkElement.prototype, $HTMLLinkElement$prototype);
+    prototypes.set(bml_dom_1.BML.HTMLLinkElement.prototype, $HTMLLinkElement$prototype);
     $HTMLLinkElement$prototype.internalProperties.class = "HTMLLinkElement";
     $HTMLLinkElement$prototype.internalProperties.get = function* $HTMLLinkElement$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLLinkElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLLinkElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLLinkElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2509,7 +2509,7 @@ function define(context, prototypes, map) {
         return $HTMLLinkElement$prototype.properties.get(propertyName)?.value;
     };
     function* $HTMLLinkElement$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.HTMLLinkElement)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.HTMLLinkElement)) {
             throw new es2_1.InterpreterTypeError(`HTMLLinkElement.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2520,10 +2520,10 @@ function define(context, prototypes, map) {
     ;
     $HTMLLinkElement$prototype.internalProperties.put = $HTMLLinkElement$put;
     const $DOMImplementation$prototype = (0, es2_1.newObject)(context.realm.intrinsics.ObjectPrototype);
-    prototypes.set(DOM_1.BML.DOMImplementation.prototype, $DOMImplementation$prototype);
+    prototypes.set(bml_dom_1.BML.DOMImplementation.prototype, $DOMImplementation$prototype);
     $DOMImplementation$prototype.internalProperties.class = "DOMImplementation";
     $DOMImplementation$prototype.internalProperties.get = function* $DOMImplementation$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.DOMImplementation)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.DOMImplementation)) {
             throw new es2_1.InterpreterTypeError(`DOMImplementation.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2531,7 +2531,7 @@ function define(context, prototypes, map) {
         return $DOMImplementation$prototype.properties.get(propertyName)?.value;
     };
     function* $DOMImplementation$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.DOMImplementation)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.DOMImplementation)) {
             throw new es2_1.InterpreterTypeError(`DOMImplementation.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2545,17 +2545,17 @@ function define(context, prototypes, map) {
         dontEnum: true,
         dontDelete: true,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* $DOMImplementation$prototype$hasFeature(ctx, self, args, caller) {
-            if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.DOMImplementation)) {
+            if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.DOMImplementation)) {
                 throw new es2_1.InterpreterTypeError("DOMImplementation.prototype.hasFeature: Invalid call", ctx, caller);
             }
             return wrap(prototypes, map, self.internalProperties.hostObjectValue.hasFeature(yield* (0, es2_1.toString)(ctx, args[0], caller), yield* (0, es2_1.toString)(ctx, args[1], caller)));
         }, 2, "hasFeature"),
     });
     const $CharacterData$prototype = (0, es2_1.newObject)($Node$prototype);
-    prototypes.set(DOM_1.BML.CharacterData.prototype, $CharacterData$prototype);
+    prototypes.set(bml_dom_1.BML.CharacterData.prototype, $CharacterData$prototype);
     $CharacterData$prototype.internalProperties.class = "CharacterData";
     $CharacterData$prototype.internalProperties.get = function* $CharacterData$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.CharacterData)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.CharacterData)) {
             throw new es2_1.InterpreterTypeError(`CharacterData.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2567,7 +2567,7 @@ function define(context, prototypes, map) {
         return $CharacterData$prototype.properties.get(propertyName)?.value;
     };
     function* $CharacterData$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.CharacterData)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.CharacterData)) {
             throw new es2_1.InterpreterTypeError(`CharacterData.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2595,10 +2595,10 @@ function define(context, prototypes, map) {
         value: undefined,
     });
     const $Text$prototype = (0, es2_1.newObject)($CharacterData$prototype);
-    prototypes.set(DOM_1.BML.Text.prototype, $Text$prototype);
+    prototypes.set(bml_dom_1.BML.Text.prototype, $Text$prototype);
     $Text$prototype.internalProperties.class = "Text";
     $Text$prototype.internalProperties.get = function* $Text$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.Text)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.Text)) {
             throw new es2_1.InterpreterTypeError(`Text.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2606,7 +2606,7 @@ function define(context, prototypes, map) {
         return $Text$prototype.properties.get(propertyName)?.value;
     };
     function* $Text$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.Text)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.Text)) {
             throw new es2_1.InterpreterTypeError(`Text.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2617,10 +2617,10 @@ function define(context, prototypes, map) {
     ;
     $Text$prototype.internalProperties.put = $Text$put;
     const $CDATASection$prototype = (0, es2_1.newObject)($Text$prototype);
-    prototypes.set(DOM_1.BML.CDATASection.prototype, $CDATASection$prototype);
+    prototypes.set(bml_dom_1.BML.CDATASection.prototype, $CDATASection$prototype);
     $CDATASection$prototype.internalProperties.class = "CDATASection";
     $CDATASection$prototype.internalProperties.get = function* $CDATASection$get(ctx, self, propertyName, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.CDATASection)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.CDATASection)) {
             throw new es2_1.InterpreterTypeError(`CDATASection.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {
@@ -2628,7 +2628,7 @@ function define(context, prototypes, map) {
         return $CDATASection$prototype.properties.get(propertyName)?.value;
     };
     function* $CDATASection$put(ctx, self, propertyName, value, caller) {
-        if (!(self?.internalProperties.hostObjectValue instanceof DOM_1.BML.CDATASection)) {
+        if (!(self?.internalProperties.hostObjectValue instanceof bml_dom_1.BML.CDATASection)) {
             throw new es2_1.InterpreterTypeError(`CDATASection.prototype.${propertyName}: Invalid call`, ctx, caller);
         }
         switch (propertyName) {

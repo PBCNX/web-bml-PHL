@@ -43,6 +43,9 @@
   },
   "exclude": [
     "example",
-    "dist"
+    "dist",
+    // The suite is TypeScript now, but it runs under node's type stripping against the built dist/,
+    // so it is checked by tsconfig.test.json rather than emitted into dist/test.
+    "test"
   ]
 }

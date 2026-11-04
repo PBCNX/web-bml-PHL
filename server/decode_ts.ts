@@ -1,11 +1,13 @@
 import { TSReader } from "arib-mmt-tlv-ts/ts/reader.js";
 import { decodeSIText } from "arib-mmt-tlv-ts/ts/si-text-decoder.js";
 import { bcdTimeToSeconds, mjdBCDToUnixEpoch } from "arib-mmt-tlv-ts/utils.js";
+import { effectiveStreamOffsetMinutes, totFieldUnixMillis } from "../client/time_offset";
 import { PESReader } from "arib-mmt-tlv-ts/ts/pes-reader.js";
+import { codecForStreamType, isAudioStreamType, sniffAudioCodec } from "../protocol/audio_codec.js";
 import { unzlibSync } from "fflate";
-import { EntityParser, type MediaType, parseMediaType, entityHeaderToString, parseMediaTypeFromString } from "./entity_parser";
-import * as wsApi from "./ws_api";
-import type { ComponentPMT, AdditionalAribBXMLInfo } from "./ws_api";
+import { EntityParser, type MediaType, parseMediaType, entityHeaderToString, parseMediaTypeFromString } from "../client/entity_parser";
+import * as wsApi from "../protocol/messages";
+import type { ComponentPMT, AdditionalAribBXMLInfo } from "../protocol/messages";
 
 type DownloadComponentInfo = {
     componentId: number,
@@ -43,10 +45,51 @@ type CachedModule = {
     dataEventId: number,
 };
 
+/**
+ * The EWBS messages one `emergency_information_descriptor` (tag 0xFC) yields.
+ *
+ * Split out of the reader so the mapping is testable without TS framing. The descriptor is a PMT
+ * program_info descriptor — that is where PBCNX's injector writes it and where their end-to-end stream
+ * carries it; an SDT hook never fires, which is how the first version of this went unnoticed.
+ */
+export function emergencyInfoMessages(serviceId: number, descriptor: unknown): wsApi.EmergencyInfoMessage[] {
+    // Another tag's descriptor also carries `services`, so narrow on the tag before reading them.
+    const ewbs = descriptor as { tag?: string, services?: { startEndFlag: boolean, signalLevel: boolean, areaCodes: number[] }[] } | null;
+    if (ewbs?.tag !== "emergencyInformation" || ewbs.services == null) {
+        return [];
+    }
+    return ewbs.services.map((alert) => ({
+        type: "emergencyInfo" as const,
+        serviceId,
+        startEndFlag: alert.startEndFlag,
+        signalLevel: alert.signalLevel,
+        areaCodes: alert.areaCodes,
+    }));
+}
+/**
+ * 3.0.0: the end of an alert, as the receiver can observe it — the descriptor left the PMT (the profile's stop procedure;
+ * the TMCC activation flag is not carried in the TS). Distinct from startEndFlag 0, which TR-B14 calls a
+ * test and the PH profile does not adopt as an ending (TR-B14 Vol. 1; the PH profile does not adopt that test method).
+ */
+export function emergencyStopMessage(serviceId: number): wsApi.EmergencyInfoMessage {
+    return {
+        type: "emergencyInfo",
+        serviceId,
+        startEndFlag: false,
+        signalLevel: false,
+        areaCodes: [],
+        stopped: true,
+    };
+}
+
+/** Where the demuxer reports problems; a host can pass its Logger, and the console is the default. */
+export type DecodeTSLogger = Pick<Console, "log" | "warn" | "error">;
+
 export type DecodeTSOptions = {
     sendCallback: (msg: wsApi.ResponseMessage) => void;
     serviceId?: number;
     parsePES?: boolean;
+    logger?: DecodeTSLogger;
 };
 
 type CachedComponent = {
@@ -54,6 +97,21 @@ type CachedComponent = {
 };
 
 const utf8Decoder = new TextDecoder("utf-8");
+
+/**
+ * SI text that is plain printable ASCII is ASCII, not ARIB 8-bit text.
+ *
+ * PH muxes put `GMA`, `GTV`, `HEART OF ASIA` straight into the SDT service descriptor; passing those
+ * bytes to the ARIB decoder produced `罵` for `GMA` (measured on GMA-BML.ts, 2026-11-02). A string with
+ * no control byte and no 8-bit byte cannot be ARIB text, so the ASCII reading is the safe one. Anything
+ * else still goes through the decoder.
+ */
+function decodeSITextOrAscii(bytes: Uint8Array): string {
+    if (bytes.length > 0 && bytes.every((b) => b >= 0x20 && b <= 0x7e)) {
+        return String.fromCharCode(...bytes);
+    }
+    return decodeSIText(bytes);
+}
 
 let base64Table: string[] = [];
 
@@ -102,13 +160,65 @@ function concatBuffers(buffers: Uint8Array[]): Uint8Array {
     return result;
 }
 
+/** The BIT section shape this module needs; the library's type, narrowed to what is read. */
+export type BitSection = {
+    originalNetworkId: number,
+    broadcasters: {
+        broadcasterId: number,
+        broadcasterDescriptors: readonly unknown[],
+    }[],
+};
+
+type BitDescriptor = {
+    tag: string,
+    name?: Uint8Array,
+    services?: { serviceId: number, serviceType: number }[],
+    broadcasterType?: number | "terrestrial",
+    terrestrialBroadcasterId?: number,
+    affiliationIdList?: number[],
+    broadcasters?: { originalNetworkId: number, broadcasterId: number }[],
+};
+
+/**
+ * 2.6.1: BIT section → the "bit" message the client's BroadcasterDatabase consumes.
+ *
+ * The table carries a broadcaster's name (0xD8), its service list (0x41) and, for terrestrial
+ * broadcasters, the extended broadcaster descriptor (0xCE) with the affiliation ids and the broadcasters
+ * that belong to the same affiliation. A BS/CS broadcaster may carry no 0xCE at all — the BS-TBS capture
+ * has only serviceList, siParameter and broadcasterName — so an empty affiliation list is a fact about
+ * the stream, not a parse failure.
+ */
+export function bitMessageFromSection(section: BitSection): wsApi.BITMessage {
+    const broadcasters: wsApi.BITBroadcaster[] = section.broadcasters.map((broadcaster) => {
+        const descriptors = broadcaster.broadcasterDescriptors as unknown as BitDescriptor[];
+        const name = descriptors.find((d) => d.tag === "broadcasterName");
+        const serviceList = descriptors.find((d) => d.tag === "serviceList");
+        const extended = descriptors.find((d) => d.tag === "extendedBroadcaster" && d.broadcasterType === "terrestrial");
+        return {
+            broadcasterId: broadcaster.broadcasterId,
+            broadcasterName: name?.name == null ? null : decodeSITextOrAscii(name.name),
+            services: (serviceList?.services ?? []).map((service) => ({ serviceType: service.serviceType, serviceId: service.serviceId })),
+            affiliations: extended?.affiliationIdList ?? [],
+            affiliationBroadcasters: (extended?.broadcasters ?? []).map((b) => ({ originalNetworkId: b.originalNetworkId, broadcasterId: b.broadcasterId })),
+            ...(extended?.terrestrialBroadcasterId != null ? { terrestrialBroadcasterId: extended.terrestrialBroadcasterId } : {}),
+        };
+    });
+    return {
+        type: "bit",
+        originalNetworkId: section.originalNetworkId,
+        broadcasters,
+    };
+}
+
 export function decodeTS(options: DecodeTSOptions) {
     const reader = new TSReader();
     const { sendCallback: send, serviceId: specifiedServiceId, parsePES } = options;
+    const logger = options.logger ?? console;
     let pmtRetrieved = false;
     let pidToComponent = new Map<number, ComponentPMT>();
     let componentToPid = new Map<number, ComponentPMT>();
     let currentTime: number | null = null;
+    let localTimeOffset: number | null = null;
     const downloadComponents = new Map<number, DownloadComponentInfo>();
     const cachedComponents = new Map<number, CachedComponent>();
     let currentProgramInfo: wsApi.ProgramInfoMessage = {
@@ -122,6 +232,7 @@ export function decodeTS(options: DecodeTSOptions) {
                     durationSeconds: null,
                     indefiniteDuration: null,
                     networkId: null,
+                    serviceName: null,
                 };
     // SDTのEIT_present_following_flag
     // key: service_id
@@ -132,21 +243,36 @@ export function decodeTS(options: DecodeTSOptions) {
     let pcrPID: number | null = null;
     // 字幕/文字スーパーのPESのPID
     let privatePes = new Set<number>();
+    // PIDs whose audio codec has already been sniffed and reported.
+    const sniffedAudio = new Set<number>();
     let privatePesReaders = new Map<number, PESReader>();
 
     // ワンセグの場合0x1fc8-0x1fcfまでの固定PIDでPMTでワンセグのみを受信している場合PATは受信されない
     // ワンセグPMTを10回受信する間にPATが未受信であればワンセグだと判定
     let oneSegPMTCount = 0;
     let oneSeg = false;
+    // The PMT repeats, so the same descriptor arrives several times a second; an alert is only news
+    // when its state or areas change.
+    const lastEmergencyInfo = new Map<number, string>();
     let patRetrieved = false;
 
     reader.addEventListener("tot", ({ section }) => {
-        const time = mjdBCDToUnixEpoch(section.jstTime) * 1000;
-        if (currentTime !== time) {
+        // C16: the descriptor says what the **time field** is — GMA declares PHL +0:00 and its field
+        // is UTC (the capture was saved at 23:29 PH local and reads 15:24), TV5 and PTV declare +8:00
+        // and their fields are local, Japan's field is JST. `mjdBCDToUnixEpoch` converts the field as
+        // if it were JST, so add that back to recover the wall clock, then subtract the field's own
+        // offset to get UTC. The page clock is displayed in the broadcaster's zone (PH is +8:00
+        // whatever the field says), which is `offset` in the message.
+        // Verbatim: the field as sent, and the declared offset only as data (the box ignores it).
+        const offset = effectiveStreamOffsetMinutes(section.descriptors);
+        const time = totFieldUnixMillis(mjdBCDToUnixEpoch(section.jstTime) * 1000);
+        if (currentTime !== time || localTimeOffset !== offset) {
             currentTime = time;
+            localTimeOffset = offset;
             send({
                 type: "currentTime",
                 timeUnixMillis: currentTime,
+                ...(offset != null ? { localTimeOffsetMinutes: offset } : {}),
             });
         }
     });
@@ -163,9 +289,9 @@ export function decodeTS(options: DecodeTSOptions) {
             serviceId ??= program.programNumber;
         }
         if (pat.size !== pidToProgramNumber.size || [...pidToProgramNumber.keys()].some((x) => !pat.has(x))) {
-            console.log("PAT changed", pat);
+            logger.log("PAT changed", pat);
             if (specifiedServiceId != null && pat.size !== 1) {
-                console.warn("multiplexed!");
+                logger.warn("multiplexed!");
             }
             pmtRetrieved = false;
         }
@@ -185,6 +311,26 @@ export function decodeTS(options: DecodeTSOptions) {
         }
         if (section.programNumber !== serviceId) {
             return;
+        }
+        // EWBS: the emergency_information_descriptor is a program_info descriptor of the PMT (that is
+        // where PBCNX's injector puts it and where captures carry it), and it names the areas an
+        // alert covers. Without this the engine could decide relevance but never learn the areas.
+        let emergencyDescriptorPresent = false;
+        for (const programDescriptor of section.programInfo) {
+            for (const message of emergencyInfoMessages(section.programNumber, programDescriptor)) {
+                emergencyDescriptorPresent = true;
+                const key = `${message.startEndFlag}|${message.signalLevel}|${message.areaCodes.join(",")}`;
+                if (lastEmergencyInfo.get(message.serviceId) !== key) {
+                    lastEmergencyInfo.set(message.serviceId, key);
+                    send(message);
+                }
+            }
+        }
+        // the profile's stop procedure: an alert ends by the descriptor leaving the PMT (the TMCC half of the rule is not
+        // in the transport stream). Without this the receiver kept the last alert for ever.
+        if (!emergencyDescriptorPresent && lastEmergencyInfo.has(section.programNumber)) {
+            lastEmergencyInfo.delete(section.programNumber);
+            send(emergencyStopMessage(section.programNumber));
         }
         const ptc = new Map<number, ComponentPMT>();
         const ctp = new Map<number, ComponentPMT>();
@@ -233,7 +379,6 @@ export function decodeTS(options: DecodeTSOptions) {
         pidToComponent = ptc;
         if (!pmtRetrieved || componentToPid.size !== ctp.size || [...componentToPid.keys()].some((x) => !ctp.has(x))) {
             // PMTが変更された
-            // console.log("PMT changed");
             componentToPid = ctp;
             pmtRetrieved = true;
             const msg: wsApi.PMTMessage = {
@@ -247,6 +392,30 @@ export function decodeTS(options: DecodeTSOptions) {
     reader.addEventListener("packet", ({ packet }) => {
         if (packet.transportErrorIndicator) {
             return;
+        }
+        // Audio labels lie on the PH band, so report the codec the bytes actually carry, once per PID.
+        const component = pidToComponent?.get(packet.pid);
+        if (component != null && isAudioStreamType(component.streamType) && !sniffedAudio.has(packet.pid)) {
+            const afc = packet.adaptationFieldControl;
+            const offset = 4 + ((afc & 2) ? 1 + packet.data[4] : 0);
+            const payload = packet.data.subarray(offset);
+            if (payload.length >= 9 && payload[0] === 0 && payload[1] === 0 && payload[2] === 1) {
+                const headerLength = 9 + payload[8];
+                const codec = sniffAudioCodec(payload.subarray(headerLength));
+                if (codec != null) {
+                    sniffedAudio.add(packet.pid);
+                    const expectedCodec = codecForStreamType(component.streamType);
+                    send({
+                        type: "audioCodec",
+                        componentId: component.componentId,
+                        pid: component.pid,
+                        streamType: component.streamType,
+                        codec,
+                        expectedCodec,
+                        labelAgrees: expectedCodec == null || expectedCodec === codec,
+                    });
+                }
+            }
         }
         if (privatePes.has(packet.pid)) {
             const reader = privatePesReaders.get(packet.pid) ?? new PESReader();
@@ -284,41 +453,6 @@ export function decodeTS(options: DecodeTSOptions) {
             pcrBase,
             pcrExtension,
         });
-    });
-
-    reader.addEventListener("bit", ({ section }) => {
-        // data.first_descriptorsはSI伝送記述子のみ
-        // 地上波だとbroadcaster_idは255
-        const broadcasters: wsApi.BITBroadcaster[] = [];
-        for (const descriptor of section.broadcasters) {
-            let broadcaster_id = descriptor.broadcasterId;
-            const broadcasterNameDescriptor = descriptor.broadcasterDescriptors.find((x) => x.tag === "broadcasterName");
-            const broadcasterName = broadcasterNameDescriptor?.name == null ? null : decodeSIText(broadcasterNameDescriptor?.name);
-            const serviceListDescriptor = descriptor.broadcasterDescriptors.find((x) => x.tag === "serviceList");
-            const extendedBroadcasterDescriptor = descriptor.broadcasterDescriptors.find((x) => x.tag === "extendedBroadcaster");
-            const terDescriptor = extendedBroadcasterDescriptor?.broadcasterType === "terrestrial" ? extendedBroadcasterDescriptor : undefined;
-            const affiliations = terDescriptor?.affiliationIdList ?? [];
-            const affiliationBroadcasters = terDescriptor?.broadcasters ?? [];
-            const services = serviceListDescriptor?.services ?? [];
-            if (broadcaster_id === 255) {
-                // broadcaster_id = extendedBroadcasterDescriptor?.terrestrial_broadcaster_id ?? broadcaster_id;
-            }
-            const broadcaster: wsApi.BITBroadcaster = {
-                affiliations,
-                broadcasterId: broadcaster_id,
-                broadcasterName,
-                affiliationBroadcasters: affiliationBroadcasters,
-                services,
-                terrestrialBroadcasterId: terDescriptor?.terrestrialBroadcasterId,
-            };
-            broadcasters.push(broadcaster);
-        }
-        const msg: wsApi.BITMessage = {
-            type: "bit",
-            broadcasters,
-            originalNetworkId: section.originalNetworkId,
-        };
-        send(msg);
     });
 
     function updateProgramInfo(info: Partial<wsApi.ProgramInfoMessage>) {
@@ -367,7 +501,7 @@ export function decodeTS(options: DecodeTSOptions) {
         const indefiniteDuration = event.duration == null;
         const startTimeUnixMillis =  event.startTime == null ? null : mjdBCDToUnixEpoch(event.startTime) * 1000;
         const shortEvent = event.descriptors.find(x => x.tag === "shortEvent"); // 短形式イベント記述子
-        const eventName = shortEvent == null ? null : decodeSIText(shortEvent.eventName);
+        const eventName = shortEvent == null ? null : decodeSITextOrAscii(shortEvent.eventName);
         updateProgramInfo({
             eventId,
             eventName,
@@ -385,14 +519,27 @@ export function decodeTS(options: DecodeTSOptions) {
         }
     });
 
+    reader.addEventListener("bit", ({ section }) => {
+        // 2.6.1: forward the broadcaster information table. The client's BroadcasterDatabase already
+        // knows how to store a "bit" message; nothing produced one, so a Japanese page that reads its
+        // affiliation/group memory (nvram://03;group/…) was refused as "affiliationId == null" even
+        // when the stream carried the table. The PH muxes do not use group memory, but a played JP
+        // capture should behave like the box.
+        send(bitMessageFromSection(section));
+    });
+
     reader.addEventListener("sdt", ({ section }) => {
         if (section.tableId === "SDT[actual]") { // 自ストリームのSDT
             eitPresentFollowingFlag.clear();
             for (const service of section.services) {
                 eitPresentFollowingFlag.set(service.serviceId, service.eitPresentFollowingFlag);
                 for (const descriptor of service.descriptors) {
-                    if (descriptor.tag === "service") {// 0x48 サービス記述子
-                        // console.log(service.service_id, new TsChar(descriptor.service_name_char).decode(), new TsChar(descriptor.service_provider_name_char).decode());
+                    if (descriptor.tag === "service" && service.serviceId === serviceId) {// 0x48 サービス記述子
+                        // 2.4.2: the identity a host needs when it plays a file through a UDP driver.
+                        const serviceDescriptor = descriptor as unknown as { serviceName?: Uint8Array };
+                        if (serviceDescriptor.serviceName != null) {
+                            updateProgramInfo({ serviceName: decodeSITextOrAscii(serviceDescriptor.serviceName) });
+                        }
                     }
                 }
             }
@@ -409,7 +556,7 @@ export function decodeTS(options: DecodeTSOptions) {
             return;
         }
         const shortEventDescriptor = service.descriptors.find((desc) => desc.tag === "shortEvent");
-        const eventName = shortEventDescriptor == null ? null : decodeSIText(shortEventDescriptor.eventName);
+        const eventName = shortEventDescriptor == null ? null : decodeSITextOrAscii(shortEventDescriptor.eventName);
         const networkId = section.transmissionInfoDescriptors.find((desc) => desc.tag === "networkIdentification")?.networkId;
         let transportStreamId: number | null = null;
         let eventId: number | null = null;
@@ -469,7 +616,6 @@ export function decodeTS(options: DecodeTSOptions) {
         const { componentId, bxmlInfo } = c;
         if (section.tableId === "DII") {
             // DII
-            // console.log(pid, data);
             const transationIdLow2byte = section.tableIdExtension;
             const sectionNumber = section.sectionNumber;
             const lastSectionNumber = section.lastSectionNumber;
@@ -483,17 +629,22 @@ export function decodeTS(options: DecodeTSOptions) {
             const dataEventId = (downloadId >> 28) & 15;
             const modules = new Map<number, DownloadModuleInfo>();
             const transactionId = section.dsmccMessageHeader.transactionId;
-            if (downloadComponents.get(componentId)?.transactionId === section.dsmccMessageHeader.transactionId) {
-                return;
-            }
-            const componentInfo: DownloadComponentInfo = {
-                componentId,
-                modules,
-                transactionId,
-                downloadedModuleCount: 0,
-                dataEventId,
-            };
-            // console.log(`componentId: ${componentId.toString(16).padStart(2, "0")} downloadId: ${downloadId}`)
+            const previous = downloadComponents.get(componentId);
+            // One DII transaction can span several sections (section_number/last_section_number).
+            // Keeping only the first one hid the modules announced by the others - BS-TBS locks
+            // /60/2003..2009 and got "component does not exist in DII" because those lived in a
+            // later section. Merge while the transaction id is unchanged; a new transaction resets.
+            const sameTransaction = previous != null && previous.transactionId === transactionId;
+            const componentInfo: DownloadComponentInfo = sameTransaction
+                ? previous
+                : {
+                    componentId,
+                    modules,
+                    transactionId,
+                    downloadedModuleCount: 0,
+                    dataEventId,
+                };
+            componentInfo.dataEventId = dataEventId;
             // blockSizeは常に4066
             const blockSize = section.blockSize;
             // windowSize, ackPeriod, tCDownloadWindowは常に0
@@ -515,7 +666,6 @@ export function decodeTS(options: DecodeTSOptions) {
                     dataEventId: dataEventId,
                 };
                 modules.set(moduleId, moduleInfo);
-                // console.log(`   moduleId: ${moduleId.toString(16).padStart(4, "0")} moduleVersion: ${moduleVersion}`)
                 for (const info of module.moduleInfoDescriptors) {
                     // Type記述子, ダウンロード推定時間記述子, Compression Type記述子のみ運用される(TR-B14 第三分冊 4.2.4 表4-4参照)
                     if (info.tag === "type") { // Type記述子 STD-B24 第三分冊 第三編 6.2.3.1
@@ -543,7 +693,7 @@ export function decodeTS(options: DecodeTSOptions) {
             send({
                 type: "moduleListUpdated",
                 componentId,
-                modules: section.modules.map((x) => ({ id: x.moduleId, version: x.moduleVersion, size: x.moduleSize })),
+                modules: [...modules.values()].map((x) => ({ id: x.moduleId, version: x.moduleVersion, size: x.moduleSize })),
                 dataEventId: dataEventId,
                 returnToEntryFlag,
             });
@@ -573,7 +723,6 @@ export function decodeTS(options: DecodeTSOptions) {
             const blockNumber = section.blockNumber;
 
             const moduleInfo = componentInfo.modules.get(moduleId);
-            // console.log(`download ${componentId.toString(16).padStart(2, "0")}/${moduleId.toString(16).padStart(4, "0")}`)
             if (moduleInfo == null) {
                 return;
             }
@@ -608,38 +757,49 @@ export function decodeTS(options: DecodeTSOptions) {
                     return;
                 }
                 if (moduleInfo.compressionType === CompressionType.Zlib) {
-                    moduleData = unzlibSync(moduleData);
+                    try {
+                        moduleData = unzlibSync(moduleData);
+                    } catch (e) {
+                        // A corrupt module is dropped; the carousel offers it again.
+                        logger.error("failed to inflate module", moduleInfo.moduleId, e);
+                        return;
+                    }
                 }
                 const mediaType = moduleInfo.contentType == null ? null : parseMediaTypeFromString(moduleInfo.contentType).mediaType;
-                // console.info(`component ${componentId.toString(16).padStart(2, "0")} module ${moduleId.toString(16).padStart(4, "0")}updated`);
                 if (mediaType == null || (mediaType.type === "multipart" && mediaType.subtype === "mixed")) {
                     const parser = new EntityParser(moduleData);
-                    const mod = parser.readEntity();
+                    let mod: ReturnType<EntityParser["readEntity"]> = null;
+                    try {
+                        mod = parser.readEntity();
+                    } catch (e) {
+                        // The stream is not trusted: one bad module must not abort the demuxer.
+                        logger.error("failed to parse module", moduleInfo.moduleId, e);
+                        return;
+                    }
                     if (mod?.multipartBody == null) {
-                        console.error("failed to parse module");
+                        logger.error("failed to parse module");
                     } else {
                         const files = new Map<string | null, CachedModuleFile>();
                         for (const entity of mod.multipartBody) {
                             const location = entity.headers.find(x => x.name === "content-location");
                             if (location == null) { // 必ず含む
-                                console.error("failed to find Content-Location");
+                                logger.error("failed to find Content-Location");
                                 continue;
                             }
                             const contentType = entity.headers.find(x => x.name === "content-type");
                             if (contentType == null) { // 必ず含む
-                                console.error("failed to find Content-Type");
+                                logger.error("failed to find Content-Type");
                                 continue;
                             }
                             const mediaType = parseMediaType(contentType.value);
                             if (mediaType.mediaType == null) {
-                                console.error("failed to parse Content-Type", entityHeaderToString(contentType));
+                                logger.error("failed to parse Content-Type", entityHeaderToString(contentType));
                                 continue;
                             }
                             if (mediaType.error) {
-                                console.log("failed to parse Content-Type", entityHeaderToString(contentType));
+                                logger.warn("failed to parse Content-Type", entityHeaderToString(contentType));
                             }
                             const locationString = entityHeaderToString(location);
-                            // console.log("    ", locationString, entityHeaderToString(contentType));
                             files.set(locationString, {
                                 contentLocation: locationString,
                                 contentType: mediaType.mediaType,

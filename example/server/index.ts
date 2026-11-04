@@ -1,5 +1,5 @@
 import Koa from 'koa';
-import Router from 'koa-router';
+import Router, { IRouterContext } from 'koa-router';
 import fs, { mkdirSync } from "fs"
 import fsAsync from "fs/promises";
 import 'dotenv/config'
@@ -182,34 +182,62 @@ router.get("/rounded-mplus-1m-arib.ttf", async ctx => {
     ctx.body = fs.createReadStream("dist/rounded-mplus-1m-arib.ttf");
 });
 
-// モトヤマルベリ
-router.get("/KosugiMaru-Regular.woff2", async ctx => {
-    const path = require.resolve("web-bml-fonts/KosugiMaru-Regular.woff2");
-    const stat = await fsAsync.stat(path);
-    ctx.response.length = stat.size;
-    ctx.body = fs.createReadStream(path);
-    ctx.set("Content-Type", "font/woff2")
-});
-router.get("/KosugiMaru-Bold.woff2", async ctx => {
-    const path = require.resolve("web-bml-fonts/KosugiMaru-Bold.woff2");
-    const stat = await fsAsync.stat(path);
-    ctx.response.length = stat.size;
-    ctx.body = fs.createReadStream(path);
-    ctx.set("Content-Type", "font/woff2")
-});
-// モトヤシーダ
-router.get("/Kosugi-Regular.woff2", async ctx => {
-    const path = require.resolve("web-bml-fonts/KosugiMaru-Regular.woff2");
-    const stat = await fsAsync.stat(path);
-    ctx.response.length = stat.size;
-    ctx.body = fs.createReadStream(path);
-    ctx.set("Content-Type", "font/woff2")
-});
+// BML-PH Sans, the profile default (2.4.0). BMLPH-RoundGothic-Regular.woff2 is served too, for
+// hosts that want the Kosugi/maru look.
+for (const face of ["BMLPH-Sans-Regular.woff2", "BMLPH-Sans-Bold.woff2", "BMLPH-RoundGothic-Regular.woff2"]) {
+    router.get("/" + face, async ctx => {
+        const path = require.resolve("web-bml-fonts/" + face);
+        const stat = await fsAsync.stat(path);
+        ctx.response.length = stat.size;
+        ctx.body = fs.createReadStream(path);
+        ctx.set("Content-Type", "font/woff2");
+    });
+}
+
+// The demo proxy forwards to whatever URL a page names, so by default it only reaches public
+// addresses and verifies TLS. Both relaxations are explicit opt-ins for a local demo rig.
+const allowPrivateTargets = process.env.ALLOW_PRIVATE_TARGETS === "true";
+const allowInsecureTls = process.env.ALLOW_INSECURE_TLS === "true";
+
+function isPrivateAddress(address: string): boolean {
+    const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(address);
+    if (v4 != null) {
+        const a = Number(v4[1]);
+        const b = Number(v4[2]);
+        return a === 0 || a === 10 || a === 127
+            || (a === 169 && b === 254)
+            || (a === 172 && b >= 16 && b <= 31)
+            || (a === 192 && b === 168)
+            || (a === 100 && b >= 64 && b <= 127);
+    }
+    const lower = address.toLowerCase();
+    return lower === "::1" || lower === "::" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80");
+}
+
+/** Rejects a proxy target that resolves into loopback, link-local, or a private range. */
+async function assertPublicTarget(url: string): Promise<void> {
+    if (allowPrivateTargets) {
+        return;
+    }
+    const hostname = new URL(url).hostname;
+    for (const { address } of await dns.lookup(hostname, { all: true })) {
+        if (isPrivateAddress(address)) {
+            throw new Error(`refusing private target ${hostname} (${address})`);
+        }
+    }
+}
 
 router.get(/^\/api\/get\/(?<url>https?:\/\/.+)$/, async ctx => {
     const url = /^\/api\/get\/(?<url>https?:\/\/.+)$/.exec(ctx.originalUrl)?.groups?.url;
     if (url == null || (!url.startsWith("http://") && !url.startsWith("https://"))) {
         ctx.status = 400;
+        return;
+    }
+    try {
+        await assertPublicTarget(url);
+    } catch (e) {
+        ctx.status = 403;
+        ctx.body = String(e);
         return;
     }
     const opts: https.RequestOptions = {
@@ -218,7 +246,7 @@ router.get(/^\/api\/get\/(?<url>https?:\/\/.+)$/, async ctx => {
             "Accept-Language": "ja",
             "Pragma": "no-cache",
         },
-        rejectUnauthorized: false,
+        rejectUnauthorized: !allowInsecureTls,
     };
     const allowedRequestHeaders = new Set(["if-modified-since", "cache-control"]);
     for (let i = 0; i < ctx.req.rawHeaders.length; i += 2) {
@@ -254,6 +282,13 @@ router.post(/^\/api\/post\/(?<url>https?:\/\/.+)$/, async ctx => {
         ctx.status = 400;
         return;
     }
+    try {
+        await assertPublicTarget(url);
+    } catch (e) {
+        ctx.status = 403;
+        ctx.body = String(e);
+        return;
+    }
     const body = await streamToBuffer(ctx.req);
     if (body.byteLength > 4096 + "Denbun=".length) {
         ctx.status = 413;
@@ -267,7 +302,7 @@ router.post(/^\/api\/post\/(?<url>https?:\/\/.+)$/, async ctx => {
             "Content-Type": "application/x-www-form-urlencoded",
             "Content-Length": `${body.byteLength}`,
         },
-        rejectUnauthorized: false,
+        rejectUnauthorized: !allowInsecureTls,
     };
     const res = await new Promise<http.IncomingMessage>((resolve, reject) => {
         const client = provideHttpClient(url);
@@ -415,80 +450,62 @@ function addProgramIdArgument(args: string[], serviceId?: number): string[] {
     return newArgs;
 }
 
-router.get(/^\/streams\/(?<id>[^\/]+)\.(?<ext>mp4|webm)$/, async (ctx) => {
-    const dbs = streams.get(ctx.params.id);
-    if (dbs == null) {
-        return;
-    }
-    if (dbs.liveStream) {
-        closeDataBroadcastingLiveStream(dbs);
-    }
-    const { tsStream, readStream } = dbs;
-    ctx.set("Content-Type", "video/" + ctx.params.ext);
-    ctx.status = 200;
+type StreamRoute = { contentType: string; encoderArgs: string[] };
 
-    tsStream.unpipe();
-    dbs.liveStream = new LiveStream(ffmpeg, addProgramIdArgument(ctx.params.ext === "webm" ? webmArgs : args, dbs.serviceId), dbs.tsStream);
-    const ls = dbs.liveStream;
-    dbs.liveStream.encoderProcess.on("error", (err) => {
-        console.error("encoder proc err", err);
-        tsStream.unpipe(ls.encoderProcess.stdin);
-        ls.encoderProcess.stdout.unpipe();
-    });
-    ls.encoderProcess.on("close", (err) => {
-        console.error("close proc err", err);
-        tsStream.unpipe(ls.encoderProcess.stdin);
-        ls.encoderProcess.stdout.unpipe();
-    });
-    readStream.resume();
-    ctx.res.on("error", (err) => {
-        console.log("error res", dbs.id, dbs.source, err);
-        closeDataBroadcastingLiveStream(dbs);
-    });
-    try {
-        await pipeAsync(dbs.liveStream.encoderProcess.stdout, ctx.res, { end: true });
-    } catch {
-    }
-    closeDataBroadcastingLiveStream(dbs);
-});
+/**
+ * The wiring, teardown and error handling of a raw stream route are identical for every container;
+ * only the content type and the ffmpeg args differ, so both routes share this one handler.
+ */
+function streamRouteHandler(select: (ctx: IRouterContext) => StreamRoute) {
+    return async (ctx: IRouterContext) => {
+        const dbs = streams.get(ctx.params.id);
+        if (dbs == null) {
+            return;
+        }
+        if (dbs.liveStream) {
+            closeDataBroadcastingLiveStream(dbs);
+        }
+        const { tsStream, readStream } = dbs;
+        const { contentType, encoderArgs } = select(ctx);
+        ctx.set("Content-Type", contentType);
+        ctx.status = 200;
 
-
-router.get("/streams/:id.h264.m2ts", async (ctx) => {
-    const dbs = streams.get(ctx.params.id);
-    if (dbs == null) {
-        return;
-    }
-    if (dbs.liveStream) {
+        tsStream.unpipe();
+        dbs.liveStream = new LiveStream(ffmpeg, addProgramIdArgument(encoderArgs, dbs.serviceId), dbs.tsStream);
+        const ls = dbs.liveStream;
+        ls.encoderProcess.on("error", (err) => {
+            console.error("encoder proc err", err);
+            tsStream.unpipe(ls.encoderProcess.stdin);
+            ls.encoderProcess.stdout.unpipe();
+        });
+        ls.encoderProcess.on("close", (err) => {
+            console.error("close proc err", err);
+            tsStream.unpipe(ls.encoderProcess.stdin);
+            ls.encoderProcess.stdout.unpipe();
+        });
+        readStream.resume();
+        ctx.res.on("error", (err) => {
+            console.log("error res", dbs.id, dbs.source, err);
+            closeDataBroadcastingLiveStream(dbs);
+        });
+        try {
+            await pipeAsync(dbs.liveStream.encoderProcess.stdout, ctx.res, { end: true });
+        } catch (err) {
+            console.error("stream pipe err", dbs.id, dbs.source, err);
+        }
         closeDataBroadcastingLiveStream(dbs);
-    }
-    const { tsStream, readStream } = dbs;
-    ctx.set("Content-Type", "video/mp2t");
-    ctx.status = 200;
+    };
+}
 
-    tsStream.unpipe();
-    dbs.liveStream = new LiveStream(ffmpeg, addProgramIdArgument(mpegtsArgs, dbs.serviceId), dbs.tsStream);
-    const ls = dbs.liveStream;
-    dbs.liveStream.encoderProcess.on("error", (err) => {
-        console.error("encoder proc err", err);
-        tsStream.unpipe(ls.encoderProcess.stdin);
-        ls.encoderProcess.stdout.unpipe();
-    });
-    ls.encoderProcess.on("close", (err) => {
-        console.error("close proc err", err);
-        tsStream.unpipe(ls.encoderProcess.stdin);
-        ls.encoderProcess.stdout.unpipe();
-    });
-    readStream.resume();
-    ctx.res.on("error", (err) => {
-        console.log("error res", dbs.id, dbs.source, err);
-        closeDataBroadcastingLiveStream(dbs);
-    });
-    try {
-        await pipeAsync(dbs.liveStream.encoderProcess.stdout, ctx.res, { end: true });
-    } catch {
-    }
-    closeDataBroadcastingLiveStream(dbs);
-});
+router.get(/^\/streams\/(?<id>[^\/]+)\.(?<ext>mp4|webm)$/, streamRouteHandler((ctx) => ({
+    contentType: "video/" + ctx.params.ext,
+    encoderArgs: ctx.params.ext === "webm" ? webmArgs : args,
+})));
+
+router.get("/streams/:id.h264.m2ts", streamRouteHandler(() => ({
+    contentType: "video/mp2t",
+    encoderArgs: mpegtsArgs,
+})));
 
 mkdirSync(hlsDir, { recursive: true });
 function cleanUpHLS() {
@@ -606,7 +623,16 @@ router.get("/api/recorded", async (ctx) => {
     }
 });
 
+// The stream list is an operator view: a stream UUID is a capability URL, so publishing the list
+// to anonymous callers would hand out every live stream. Off unless the operator opts in.
+const allowStreamList = process.env.ALLOW_STREAM_LIST === "true";
+
 router.get("/api/streams", async (ctx) => {
+    if (!allowStreamList) {
+        ctx.status = 403;
+        ctx.body = "stream list disabled; set ALLOW_STREAM_LIST=true to enable it";
+        return;
+    }
     ctx.body = [...streams.values()].sort((a, b) => a.registeredAt.getTime() - b.registeredAt.getTime()).map(x => (
         {
             id: x.id,

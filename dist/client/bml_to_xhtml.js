@@ -54,6 +54,12 @@ function bmlToXHTMLFXP(data, cProfile) {
     const parser = new fast_xml_parser_1.XMLParser(opts);
     const parsed = parser.parse(data);
     const bmlRoot = findXmlNode(parsed, "bml")[0] ?? findXmlNode(parsed, "html")[0];
+    if (bmlRoot == null) {
+        // A document with no <bml>/<html> root — an empty module, a truncated fetch, an HTML error
+        // page — used to die on `bmlRoot["bml"]` with "Cannot read properties of undefined (reading
+        // 'bml')". Name the real fault so the load failure is diagnosable.
+        throw new Error(`bmlToXHTML: the document has no <bml> or <html> root (${data.length} bytes)`);
+    }
     const htmlChildren = bmlRoot["bml"] ?? bmlRoot["html"];
     visitXmlNodes(bmlRoot, (node) => {
         const children = getXmlChildren(node);
@@ -134,31 +140,29 @@ function bmlToXHTMLFXP(data, cProfile) {
             }
         }
         if (nodeName == "object" && node[":@"] != null) {
-            node[":@"]["@_arib-type"] = node[":@"]["@_type"];
-            delete node[":@"]["@_type"];
+            // Only rename what is actually there: assigning unconditionally wrote the string
+            // "undefined" into the page for every object without a type attribute.
+            if (node[":@"]["@_type"] != null) {
+                node[":@"]["@_arib-type"] = node[":@"]["@_type"];
+                delete node[":@"]["@_type"];
+            }
             if (node[":@"]["@_data"]) {
                 const data = node[":@"]["@_data"];
                 node[":@"]["@_arib-data"] = data;
                 delete node[":@"]["@_data"];
             }
         }
-        if (nodeName == "img" && node[":@"] != null) {
+        if (nodeName == "img" && node[":@"] != null && node[":@"]["@_src"] != null) {
             node[":@"]["@_arib-src"] = node[":@"]["@_src"];
             delete node[":@"]["@_src"];
         }
         if (node[":@"] && node[":@"]["@_onload"]) {
-            if (node[":@"] && node[":@"]["@_onload"]) {
-                const data = node[":@"]["@_onload"];
-                node[":@"]["@_arib-onload"] = data;
-                delete node[":@"]["@_onload"];
-            }
+            node[":@"]["@_arib-onload"] = node[":@"]["@_onload"];
+            delete node[":@"]["@_onload"];
         }
         if (node[":@"] && node[":@"]["@_onunload"]) {
-            if (node[":@"] && node[":@"]["@_onunload"]) {
-                const data = node[":@"]["@_onunload"];
-                node[":@"]["@_arib-onunload"] = data;
-                delete node[":@"]["@_onunload"];
-            }
+            node[":@"]["@_arib-onunload"] = node[":@"]["@_onunload"];
+            delete node[":@"]["@_onunload"];
         }
     });
     const builder = new fast_xml_parser_1.XMLBuilder(opts);
