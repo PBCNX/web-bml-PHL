@@ -99,7 +99,7 @@ the marker), a rewritten `README.md`, and `docs/RELEASING.md` with the 3.0.0 rec
     "what I wrote" and "what a page reads" cannot differ.
   - writes the set as a whole: `regioncode`, `prefecture` 255, `zipcode` empty — a PH code can never sit
     beside a leftover Japanese postal code.
-  - writes **nothing** when the stored set already matches (NVRAM wear, `BML-NV-09`), and returns whether
+  - writes **nothing** when the stored set already matches (NVRAM wear), and returns whether
     anything changed.
   - the encoding is a tested pure function (`receiverAreaCodeSet`); tests seed Japanese postal fields and
     assert they are overwritten.
@@ -107,8 +107,8 @@ the marker), a rewritten `README.md`, and `docs/RELEASING.md` with the 3.0.0 rec
 
 - `browser.receiverAreaCode` — the viewer's **12-bit Philippine EWBS area code** from
   `nvram://receiverinfo/regioncode`, or `null` when unset (`0`). A declared **PBCNX extension**: in TR38
-  that field *is* a 12-bit area code, but the PH profile never mapped its allocation onto it (the guide
-  holds `BML-NV-07` as unknown) and defines no other viewer-location field.
+  that field *is* a 12-bit area code, but the PH profile never mapped its allocation onto it (the profile
+  guide leaves that mapping undecided) and defines no other viewer-location field.
 - `browser.receiverArea` — the same code resolved with the engine's own 139-code table: `kind`
   (zone/region/city), `name`, and the enclosing zone and region with their names, so a page never
   carries the allocation.
