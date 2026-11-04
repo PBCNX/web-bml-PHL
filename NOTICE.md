@@ -24,7 +24,7 @@ copies.
 
 | part | copyright | licence |
 |---|---|---|
-| upstream engine | Copyright (c) 2022 otya — [otya128/web-bml](https://github.com/otya128/web-bml) | MIT |
+| upstream engine | Copyright (c) 2022 otya — [otya128/web-bml](https://github.com/otya128/web-bml), the original; this fork descends from [tsukumijima/web-bml](https://github.com/tsukumijima/web-bml), its KonomiTV fork | MIT |
 | this fork (changes, protocol layer, PH profile, fonts pipeline) | Copyright (c) 2026 The web-bml-PHL Authors (PBCNX) | MIT |
 | `BMLPH-Sans-*`, `BMLPH-SansLite-*` and the chunks | Copyright (c) 2026 The web-bml-PHL Authors (PBCNX) (modifications); derived from Noto, Copyright (c) Google LLC | SIL OFL 1.1 |
 | `BMLPH-RoundGothic-Regular.*` | Kosugi Maru, Copyright (c) Motoya Font (Apache-2.0); Huninn, Copyright (c) justfont (OFL 1.1); Noto fillers, Copyright (c) Google LLC (OFL 1.1); modifications Copyright (c) 2026 The web-bml-PHL Authors (PBCNX) | Apache-2.0 AND OFL-1.1 |
@@ -43,7 +43,7 @@ font file without its notice.
 
 | | |
 |---|---|
-| upstream | [otya128/web-bml](https://github.com/otya128/web-bml), MIT |
+| upstream | [tsukumijima/web-bml](https://github.com/tsukumijima/web-bml) (fork point `faf4d96`, which merges `otya128:master`), MIT; [otya128/web-bml](https://github.com/otya128/web-bml) is the original |
 | fork point | `faf4d96` — the `master` branch here is that commit and never moves |
 | this fork | `main`, see [`CHANGELOG.md`](CHANGELOG.md); `legacy/1.1.x` frozen at 1.1.5 |
 | build | `tsc` writes the committed `dist/`; `test/dist-hygiene.test.mjs` checks it matches the sources |
@@ -116,6 +116,7 @@ A capture shows what one station sent at one time; it never changes what a rule 
 
 ## Releasing
 
-The working clone commits, refreshes a `public-mirror` orphan branch from the release tree, and pushes
-that branch to the public repository as `main`, tagging both. `tools/publish-check.mjs` gates it, and
+The working clone commits, builds the release tree, and commits it on the public repository's `main` —
+whose history begins at upstream `master` — then tags that commit. The private `public-mirror` orphan
+branch is the reviewed snapshot of the same tree. `tools/publish-check.mjs` gates it, and
 [`docs/RELEASING.md`](docs/RELEASING.md) has the exact commands.

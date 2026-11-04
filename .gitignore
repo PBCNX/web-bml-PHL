@@ -4,7 +4,4 @@ hls/
 build/
 /example/dist/
 dist-iife/
-.desloppify/
-scorecard.png
-.claude/
 coverage/

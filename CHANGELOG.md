@@ -1,6 +1,6 @@
 # Changelog
 
-All changes against upstream `otya128/web-bml` (fork point `faf4d96`). The record with sources
+All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`, which merges `otya128:master`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
 ## 3.0.1 — start_end_flag 0 means the EWBS has ended, not a test

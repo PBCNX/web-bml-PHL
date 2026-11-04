@@ -176,6 +176,25 @@ convention.
 **A host must choose the receiver-info set as a whole.** A Japanese stream never gets a Philippine code
 (not even when no Japanese postal code is configured), and a Philippine stream gets the PH set. If hosts
 disagree, the same page shows a different region on each receiver.
+## Pinning the engine
+
+The **tag is the contract**. Install `#vX.Y.Z`, or take an archive of it into the host's own tree:
+
+```sh
+git archive --format=tar v3.0.1 | tar -x -C vendor/web-bml-3.0.1
+# then package.json: "web-bml": "file:vendor/web-bml-3.0.1"
+```
+
+A tag never moves; a fix is a new patch tag. That is why the same SHA means the same bytes in every host.
+
+**The engine's own checkout is working state, not an interface.** `BML/web-bml-v*` checkouts and
+worktrees are disposable: the engine session prunes them when it tidies up, and a host that points a
+`file:` or a junction at another session's tree loses the resolve silently on the next build. Keep the
+pinned copy under the host's tree, as above.
+
+The package itself carries `vendor/css` for npm 12 (`allow-remote = none`); a git install on npm 12 also
+needs `--allow-git=all` — the README has both forms.
+
 ## Checking a configuration
 
 `getDiagnostics()` returns the document and phase, locks, pending resources, table reads, script

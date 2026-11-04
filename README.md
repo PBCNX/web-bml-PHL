@@ -4,8 +4,10 @@ A browser engine for **BML** (ARIB STD-B24), the data-broadcasting layer of ISDB
 **Philippine profile**: the 139-code EWBS area allocation, PH text coding, the PH media types, the
 broadcast clock, and a monospaced face built for the BML cell.
 
-This is a fork of [otya128/web-bml](https://github.com/otya128/web-bml) (MIT). Upstream's engine is kept
-as-is; the fork adds what a receiver needs to run the pages Philippine broadcasters actually send.
+This is a fork of [tsukumijima/web-bml](https://github.com/tsukumijima/web-bml), the KonomiTV browser,
+which is itself a fork of [otya128/web-bml](https://github.com/otya128/web-bml), the original engine
+(MIT, Copyright (c) 2022 otya). Upstream's engine is kept as-is; this fork adds what a receiver needs to
+run the pages Philippine broadcasters actually send.
 
 ## Status
 

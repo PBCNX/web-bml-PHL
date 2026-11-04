@@ -14,7 +14,7 @@ They are not pushed together. The order is the safety:
 2. npm run build && npm test
 3. npm run check                       <- the gate
 4. build the public-mirror snapshot from the same tree
-5. push the mirror as public main, tag it, verify from a fresh clone
+5. commit the release on public main, tag it, verify from a fresh clone
 ```
 
 ## The gate
@@ -43,19 +43,27 @@ It does not run the tests: run `npm test` yourself in the same step.
 anyway — the first run of this gate did exactly that, and the public commit had to be rewritten. Use
 `&&`, or check the exit status explicitly, between the check and the push.
 
-## Building the public mirror
+## Building the public release
 
-The public history is linear and its own; the working clone's commits are the record of *why*. The
-mirror is an **orphan snapshot** of the release tree, the shape the stick repositories use:
+The public history is real: `main` begins at upstream `master` (`faf4d96`) and every release is a commit
+on that line, so a compare against upstream, a blame and a release tag all point into one graph. The
+reviewed snapshot is still an orphan branch (`public-mirror`) in the working clone — same tree, reviewed
+before it ships — but the pushed commit sits on top of the current public `main`:
 
 ```sh
-git checkout --orphan public-mirror
+# working clone; the release tree is committed on private main, build/test/check are green
+git checkout --orphan public-mirror        # review snapshot; its tree must equal private main
 git add -A
-git commit -m "Public mirror <version> snapshot"
-npm run check                     # the artifact, not just the working tree
-git push -f origin public-mirror  # private first, so it can be reviewed before shipping
-git push -f https://github.com/PBCNX/web-bml-PHL.git public-mirror:refs/heads/main
-git tag -a "v<version>" -m "web-bml-PHL <version>"
+git commit -m "web-bml-PHL <version>"
+npm run check                              # the artifact, not just the working tree
+git push -f origin public-mirror           # private first, for review
+
+# the release commit on the real public line
+tree=$(git rev-parse 'HEAD^{tree}')
+parent=$(git ls-remote https://github.com/PBCNX/web-bml-PHL.git refs/heads/main | cut -f1)
+commit=$(git commit-tree "$tree" -p "$parent" -m "web-bml-PHL <version>")
+git push https://github.com/PBCNX/web-bml-PHL.git "$commit:refs/heads/main"
+git tag -a "v<version>" "$commit" -m "web-bml-PHL <version>"
 git push https://github.com/PBCNX/web-bml-PHL.git "refs/tags/v<version>"
 ```
 
