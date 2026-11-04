@@ -1,0 +1,20 @@
+web-bml-fonts
+Copyright (c) 2026 web-bml-PHL developers
+
+This package contains font software developed by third parties. Their notices follow.
+
+Kosugi Maru / Kosugi
+  Copyright (c) Motoya Font
+  Licensed under the Apache License, Version 2.0 (see LICENSE.txt).
+  Used as the base of BML-PH RoundGothic; the glyphs Kosugi does not carry come from the faces below.
+
+Noto Sans, Noto Sans Mono CJK JP, Noto Sans Symbols, Noto Sans Symbols 2, Noto Sans Math,
+Noto Serif Tibetan
+  Copyright (c) Google LLC
+  Licensed under the SIL Open Font License, Version 1.1 (see OFL-BMLPH-Sans.txt).
+
+Huninn
+  Copyright (c) justfont
+  Licensed under the SIL Open Font License, Version 1.1 (see OFL-BMLPH-Sans.txt).
+
+The engine (web-bml-PHL) is MIT; see ../LICENSE.md and ../NOTICE.md.
