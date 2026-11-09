@@ -128,6 +128,26 @@ The demuxer reports every alert as an `emergencyInfo` message (`serviceId`, `sig
 - **What the engine already does:** `getEwbsAlert()` is the alert in force (null when none),
   `getEwbsDecision()` is how the last message was judged, and the `ewbsDocument` option opens a page
   once per alert. Keep launching the alert page from the decision, not from the raw message.
+## Captions and superimpose text
+
+The engine decodes ARIB **text fields** (`.btb` tables, bevent private data) and, since 3.0.2, treats
+ISO-8859-1 bytes in a designated alphanumeric field as Latin in the Philippine reading.
+
+**Rendering captions is the host's job**, and the rule there starts with the caption management data:
+read the coding (TCS / language) before decoding anything.
+
+- `TCS 1` → **UTF-8** (the PH path; C1 arrives as `C2 80`–`C2 9F`).
+- `TCS 0` with JIS designations → **JIS/ARIB** (Japan).
+- `TCS 0`, no JIS designation, language `spa`/`eng`/`tgl`/`por`/`fil` → **8-bit Latin**: bytes
+  `0xA0–0xFF` are ISO-8859-1, one cell wide, exactly as GL `0x20–0x7F` is. This is the Latin-American
+  path (TV Peru, Chile); sending those GR bytes through the katakana/kanji grid draws half-width kana
+  through Spanish words.
+
+The example player under `example/client/player/` uses upstream `aribb24.js`, which does not read the
+management data and has no `latin` reading; on an ISDB-Tb stream it shows that symptom. A host that
+renders captions should use a decoder that reads the declaration first — TVTest-PHL's vendored fork does
+as of 2026-11-10. Japanese captions are unaffected: their coding is never `latin`.
+
 ## NVRAM
 
 `nvramAreaBytes: 4096` sizes the affiliation and broadcaster areas the way the standard does. The
