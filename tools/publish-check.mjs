@@ -33,7 +33,7 @@ const chars = (...codes) => String.fromCharCode(...codes);
 const pcc = /[A-Za-z]:\\Users\\/i; // an absolute home path, spelled by the regex itself
 const privateMarkers = [
     ["the private standards repository", new RegExp(chars(73, 83, 68, 66, 84) + "\\s*" + chars(112, 104) + "-" + chars(83, 116, 97, 110, 100, 97, 114, 100, 115), "i")],
-    ["a rule ID from the private notes", /\bBML-(CLK|FONT|SND|EWS|CAR|KEY|CHR|SCR)-\d/i],
+    ["a rule ID from the private notes", /\bBML-[A-Z]+-\d/i],
     ["the operator's home path", pcc],
     ["the workspace path", new RegExp(chars(68, 111, 99, 117, 109, 101, 110, 116, 115) + "\\\\" + chars(68, 101, 101, 112, 83, 101, 101, 107) + "\\\\" + chars(66, 77, 76), "i")],
     ["an internal board reference", new RegExp(chars(83, 69, 83, 83, 73, 79, 78) + "-" + chars(66, 79, 65, 82, 68))],
