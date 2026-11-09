@@ -1,7 +1,7 @@
 {
   "name": "web-bml",
   "description": "BML data-broadcasting engine for the Philippine ISDB-T profile (provenance web-bml-phl-pbcnx)",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "main": "./dist/client/bml_browser.js",
   "author": "The web-bml-PHL Authors (PBCNX)",
   "license": "MIT",

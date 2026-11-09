@@ -136,7 +136,7 @@ function decodeASCII(input: Uint8Array): string {
  * half-width (with the control character in the string); keeping them half-width means this patch
  * changes no glyph on a conformant page, only the stray control that should never have been there.
  */
-function decodeDesignated(input: Uint8Array): string | null {
+function decodeDesignated(input: Uint8Array, textCoding: TextCoding): string | null {
     let g0 = "kanji";
     let g1 = "alnum";
     // GL is locked to G0 by default (ARIB STD-B24's SI defaults), and a designation of the set it is
@@ -182,8 +182,20 @@ function decodeDesignated(input: Uint8Array): string | null {
             gl = 0;
             continue;
         }
-        if (byte === SINGLE_SHIFT_2 || byte === SINGLE_SHIFT_3 || byte >= 0x80) {
-            // G2/G3 single shift, or an 8-bit byte in a designated field: not this decoder's job.
+        if (byte === SINGLE_SHIFT_2 || byte === SINGLE_SHIFT_3) {
+            // G2/G3 single shift: this decoder has no G2/G3 tables.
+            return null;
+        }
+        if (byte >= 0x80) {
+            // A Latin-American ISDB-Tb stream writes its text as ISO-8859-1 in a designated
+            // alphanumeric field (TV Peru: "Alerta de inundacion. Area de prueba AAA." with F3 = o,
+            // C1 = A). Those bytes are not valid in any ARIB alphanumeric set, so in the Philippine
+            // reading (auto) they are Latin-1, code point = byte. In the strict reading (arib), and in
+            // any other G-set, the field is still not this decoder's job and falls back as before.
+            if (textCoding === "auto" && (gl === 0 ? g0 : g1) === "alnum") {
+                text += String.fromCharCode(byte);
+                continue;
+            }
             return null;
         }
         if ((gl === 0 ? g0 : g1) === "alnum") {
@@ -225,7 +237,7 @@ export function decodeARIBText(input: Uint8Array, fallback: TextDecodeFunction, 
         return "";
     }
     if (hasDesignation(input)) {
-        return decodeDesignated(input) ?? fallback(input);
+        return decodeDesignated(input, textCoding) ?? fallback(input);
     }
     if (hasHighByte(input)) {
         if (textCoding === "auto") {

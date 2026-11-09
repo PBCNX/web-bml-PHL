@@ -3,6 +3,22 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`, which merges `otya128:master`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 3.0.2 — ISDB-Tb 8-bit Latin text reads as Latin-1
+
+- `client/media/arib_text.ts`: in a designated alphanumeric field, bytes 0x80–0xFF now decode as
+  **ISO-8859-1** in the Philippine reading (`textCoding: "auto"`). ARIB has no alphanumeric byte in
+  that range, and the old code fell back to EUC-JP, so the TV Peru capture's superimpose/caption text
+  ("Alerta de inundación. Área de prueba AAA." with F3 = ó, C1 = Á) was drawn as half-width kana and
+  kanji. The strict (`arib`) reading and every non-alphanumeric G-set are unchanged, so Japanese
+  caption and table material falls back exactly as before.
+- Tests: the measured Peru bytes, the LS1/G1 form, the strict opt-out, and two Japanese designated
+  fields that must not be claimed.
+- Also carries the documentation and tooling fixes that landed on `main` after 3.0.1: the fork-lineage
+  wording, the trimmed `.gitignore`, "Pinning the engine" in HOSTING, the changelog's private-rule-ID
+  removal, and the broader rule-ID check in the gate.
+
+236 tests (205 pass, 31 skip without captures).
+
 ## 3.0.1 — start_end_flag 0 means the EWBS has ended, not a test
 
 Wording only, plus the removal of a misleading field. An alert still ends only when the descriptor
