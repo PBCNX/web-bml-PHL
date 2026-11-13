@@ -212,8 +212,9 @@ worktrees are disposable: the engine session prunes them when it tidies up, and 
 `file:` or a junction at another session's tree loses the resolve silently on the next build. Keep the
 pinned copy under the host's tree, as above.
 
-The package itself carries `vendor/css` for npm 12 (`allow-remote = none`); a git install on npm 12 also
-needs `--allow-git=all` — the README has both forms.
+The package carries its CSS parser as source (`client/css/vendor`) and compiles it with the engine, so
+a host install resolves **no `file:` dependency** of ours — that was the 3.0.3-and-earlier install
+failure on npm 12. A git install on npm 12 still needs `--allow-git=all`; the README has both forms.
 
 ## Checking a configuration
 

@@ -9,7 +9,7 @@ exports.varToColorIndex = varToColorIndex;
 exports.translateFontSizeKeyword = translateFontSizeKeyword;
 exports.translateLineHeightKeyword = translateLineHeightKeyword;
 exports.transpileCSS = transpileCSS;
-const css_1 = __importDefault(require("css"));
+const index_js_1 = __importDefault(require("./vendor/index.js"));
 // STD-B24 第二分冊(2/2) 4.4.13 length の運用
 // STD-B24 第二分冊(2/2) 4.5.12 length の運用
 // TR-B14 第三分冊 7.8.11 lengthの運用
@@ -318,12 +318,12 @@ async function transpileCSS(style, opts) {
     if (opts.inline) {
         style = "*{" + style + "}";
     }
-    const parsed = css_1.default.parse(style);
+    const parsed = index_js_1.default.parse(style);
     if (!parsed) {
         return style;
     }
     await processRule(parsed, opts);
-    const transpiled = css_1.default.stringify(parsed, { compress: opts.inline });
+    const transpiled = index_js_1.default.stringify(parsed, { compress: opts.inline });
     if (opts.inline) {
         return transpiled.replace(/^\*\{|\}$/g, "");
     }

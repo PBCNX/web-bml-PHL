@@ -23,10 +23,19 @@ function walk(dir) {
 
 test("every compiled module in dist has a source module", () => {
     const compiled = walk(join(root, "dist")).filter((f) => f.endsWith(".js") && !f.endsWith(".map"));
+    // dist mirrors the source tree, so the same relative path must exist under the repo root.
+    // A compiled .js can come from a .ts source or, since allowJs, from a .js source (the vendored
+    // CSS parser in client/css/vendor is compiled that way); anything else is an orphan.
+    const origins = (rel) => [
+        join(root, rel),
+        join(root, "client", rel.replace(/^client[\\/]/, "")),
+        join(root, "iife", rel),
+        join(root, "es2", rel),
+    ];
     const orphans = compiled.filter((file) => {
-        const rel = relative(join(root, "dist"), file).replace(/\.js$/, ".ts");
-        // dist mirrors the source tree, so the same relative path must exist under the repo root
-        return !statExists(join(root, rel)) && !statExists(join(root, "client", rel.replace(/^client[\\/]/, ""))) && !statExists(join(root, "iife", rel)) && !statExists(join(root, "es2", rel));
+        const relJs = relative(join(root, "dist"), file);
+        const relTs = relJs.replace(/\.js$/, ".ts");
+        return ![...origins(relTs), ...origins(relJs)].some(statExists);
     });
 
     assert.deepEqual(

@@ -3,6 +3,30 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`, which merges `otya128:master`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 3.0.4 — a host can install the engine again (no `file:` dependency)
+
+- **`css` is no longer a dependency.** The pinned reworkcss/css fork (3.0.2, MIT) now lives in the
+  source tree at `client/css/vendor/` and is compiled with the engine, imported by relative path from
+  `client/css/transpile_css.ts`. `dependencies` has no `file:` entry at all.
+- **Why it had to move:** npm 12.0.2 crashes while installing any package that carries
+  `"css": "file:vendor/css"` — `Cannot destructure property 'package' of 'node.target' as it is null`
+  ([npm/cli#9506](https://github.com/npm/cli/issues/9506); the fix PR #7065 was closed unmerged). npm
+  links the entry as `node_modules/css → node_modules/web-bml/vendor/css`, and when the engine's
+  version changes that target is replaced mid-install, so arborist reads a dead link. Measured on three
+  installs (a host workspace, the same host with an empty `node_modules`, and a fresh clone), all three
+  crashed; permissions were ruled out. The effect was that **no host could move from 3.0.2 to 3.0.3**
+  with npm 12 — this release is the fix, and nothing else changed.
+- The registry was checked first and is not an option: npm publishes `css` up to **3.0.0**, and the
+  parser changes the engine depends on are in the fork's 3.0.2, which was never published there.
+- **No output change, measured.** The XHTML transform is byte-identical over its 68 documents (the
+  three broadcast BML pages kept outside the repository, the layout fixture, and 30 edge cases), and
+  the CSS transpile is byte-identical over 43 cases (two real broadcast stylesheets, 24 stylesheet
+  edge cases, 16 inline `style=""` declaration lists) — run before and after the move.
+- `dist/` gains the compiled copies under `dist/client/css/vendor/` and nothing else changes in it,
+  apart from the import line in `dist/client/css/transpile_css.js`.
+
+236 tests (a clean clone: 205 pass, 31 skip without captures).
+
 ## 3.0.3 — the XML parser is v5, and the output is unchanged
 
 - `fast-xml-parser` `^4.0.11` → `^5.12.1`. It is the parser behind `client/bml_to_xhtml.ts`, the one

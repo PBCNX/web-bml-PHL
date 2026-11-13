@@ -1,4 +1,4 @@
-import css from 'css';
+import css from './vendor/index.js';
 
 // STD-B24 第二分冊(2/2) 4.4.13 length の運用
 // STD-B24 第二分冊(2/2) 4.5.12 length の運用

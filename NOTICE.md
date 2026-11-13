@@ -51,10 +51,12 @@ font file without its notice.
 
 `es2/` is the ECMAScript evaluator vendored from upstream, not written here.
 
-`vendor/css/` is [reworkcss/css](https://github.com/reworkcss/css) 3.0.2, MIT, as forked by
-otya128 and pinned by the engine; its licence is `vendor/css/LICENSE`. It is vendored rather than
-depended on by URL because npm 12 refuses to fetch remote-tarball dependencies by default, which
-made `npm ci` fail on a clean clone.
+`client/css/vendor/` is [reworkcss/css](https://github.com/reworkcss/css) 3.0.2, MIT, as forked by
+otya128 and pinned by the engine; its licence is `client/css/vendor/LICENSE`. It is **compiled with
+the engine**, not resolved from a package: until 3.0.3 it was a `file:` dependency, and npm 12 cannot
+install a package that carries one into a host (the link is judged dead while its target is being
+replaced). Nothing is fetched from a URL either — npm 12 refuses remote-tarball dependencies by
+default — so the parser ships as source and a host install has no `file:` dependency to resolve.
 
 ## The fonts
 

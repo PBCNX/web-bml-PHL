@@ -10,6 +10,10 @@
     "module": "nodenext",
     "target": "esnext",
     "types": ["node"],
+    // The vendored CSS parser is plain CommonJS JavaScript in the source tree (client/css/vendor),
+    // so no host install has to resolve a `file:` dependency. allowJs compiles it beside the code
+    // that imports it, which keeps the relative import identical in client/ and dist/.
+    "allowJs": true,
     // For nodejs:
     // "lib": ["esnext"],
     // "types": ["node"],
@@ -41,6 +45,16 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
   },
+  // Only these trees are inputs. The include list is explicit because allowJs would otherwise reach
+  // every .js in the checkout - including the ignored dist-iife bundle and the engine itself through
+  // the example workspace's `web-bml: file://..` self-link in node_modules.
+  "include": [
+    "client",
+    "protocol",
+    "server",
+    "es2",
+    "iife",
+  ],
   "exclude": [
     "example",
     "dist",

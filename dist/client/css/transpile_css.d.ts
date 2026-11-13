@@ -1,4 +1,4 @@
-import css from 'css';
+import css from './vendor/index.js';
 export declare function parseCSSValue(value: string): string | null;
 export type CSSTranspileOptions = {
     inline: boolean;
