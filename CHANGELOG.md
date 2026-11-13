@@ -3,6 +3,29 @@
 All changes against upstream `tsukumijima/web-bml` (fork point `faf4d96`, which merges `otya128:master`). The record with sources
 and measurements is [`docs/PATCHES.md`](docs/PATCHES.md).
 
+## 3.0.3 — the XML parser is v5, and the output is unchanged
+
+- `fast-xml-parser` `^4.0.11` → `^5.12.1`. It is the parser behind `client/bml_to_xhtml.ts`, the one
+  place a BML document becomes XHTML, so the whole page path sits on it. The v5 line is where the
+  entity-expansion limits are maintained: the v4 code is in the affected range of CVE-2026-33349
+  (fixed in 5.5.7, a DocTypeReader truthiness bypass of `maxEntityCount`/`maxEntitySize`) and of
+  GHSA-8gc5-j5rx-235r / CVE-2026-33036 (numeric references bypassing the expansion limits; fixed in
+  4.5.5 and 5.5.6). The engine never sets those limits, so neither was reachable here as configured —
+  the bump keeps the pinned version out of the affected range and on the maintained line.
+- **No output change.** The same transform was run on both versions over 68 documents — the three
+  broadcast BML pages kept outside the repository (both profiles), the repository's layout fixture,
+  and 30 edge cases: attribute renames, `bml:`/`xml:` namespaces, entities, CDATA, comments, DOCTYPE,
+  self-closing and empty elements, deep nesting, control codes, and the no-root error. Every output is
+  byte-identical.
+- The API surface this function relies on did not move: v5 keeps the options (`ignoreAttributes`,
+  `attributeNamePrefix`, `preserveOrder`, `cdataPropName`, `trimValues`, `parseTagValue`) and the
+  ordered shape (`:@` for attributes, `#text`, `#cdata`), so the parse→edit→build round-trip is the
+  same code. v5's default `htmlEntities` is `false`, as v4's was, so text is decoded identically.
+- The package now publishes CJS and ESM (`lib/fxp.cjs` for `require`); the engine's own `dist/` is
+  untouched by the change — it still calls the same API — and `npm ci` resolves the new tree.
+
+236 tests (a clean clone: 205 pass, 31 skip without captures).
+
 ## 3.0.2 — ISDB-Tb 8-bit Latin text reads as Latin-1
 
 - `client/media/arib_text.ts`: in a designated alphanumeric field, bytes 0x80–0xFF now decode as

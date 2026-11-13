@@ -13,7 +13,7 @@ run the pages Philippine broadcasters actually send.
 
 | | |
 |---|---|
-| engine | **3.0.2** on `main`; `legacy/1.1.x` frozen at 1.1.5 for rollback |
+| engine | **3.0.3** on `main`; `legacy/1.1.x` frozen at 1.1.5 for rollback |
 | tests | **236** — 205 pass, 31 skip (capture-backed tests skip on a clean clone), no network |
 | bundle | `dist-iife/bml.js` 1.4 MiB (esbuild, one script) |
 | fonts | 5.7 MiB of `woff2` for both looks in the package; the `ttf` files are in the repository for Windows install |
@@ -40,10 +40,10 @@ Where all of it comes from: [`NOTICE.md`](NOTICE.md).
 
 ```sh
 # npm 12 sets allow-git=none, so name the permission once per install:
-npm install --allow-git=all github:PBCNX/web-bml-PHL#v3.0.2   # 3.0.2
+npm install --allow-git=all github:PBCNX/web-bml-PHL#v3.0.3
 
-# npm 11 and earlier:
-npm install github:PBCNX/web-bml-PHL#v3.0.2                  # 3.0.1
+# npm 11 and earlier: the same pin, without the flag
+npm install github:PBCNX/web-bml-PHL#v3.0.3
 # the old line, for a 1.1 host:
 npm install github:PBCNX/web-bml-PHL#legacy/1.1.x            # 1.1.5
 ```
