@@ -1,10 +1,10 @@
-import { NVRAM } from "./nvram";
+import { NVRAM } from "./nvram/nvram";
 import * as resource from "./resource";
 import { Interpreter } from "./interpreter/interpreter";
 import { EventDispatcher, EventQueue } from "./event_queue";
 import { Content } from "./content";
-import { ResponseMessage } from "../server/ws_api";
-import { AudioNodeProvider, Indicator, IP, Reg } from "./bml_browser";
+import { ResponseMessage } from "../protocol/messages";
+import { AudioNodeProvider, Indicator, IP, Reg } from "./contracts";
 import { type Logger } from "./util/logger";
 export type LockedModuleInfo = [moduleName: string, func: number, status: number];
 export interface Browser {
@@ -57,7 +57,6 @@ export interface Browser {
     getProgramID(type: number): string | null;
     getActiveDocument(): string | null;
     lockScreen(): number;
-    unlockScreen(): number;
     getBrowserSupport(sProvider: string, functionname: string, ...additionalinfo: string[]): number;
     launchDocument(documentName: string, transitionStyle?: string): number;
     quitDocument(): number;

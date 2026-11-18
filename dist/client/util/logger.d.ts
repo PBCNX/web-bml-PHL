@@ -6,13 +6,14 @@ declare const logLevel: {
     readonly debug: -1;
 };
 export type LogLevel = keyof typeof logLevel;
+type Write = (...args: any[]) => void;
 export declare class Logger {
     prefix: string;
-    error: (...data: any[]) => void;
-    warn: (...data: any[]) => void;
-    info: (...data: any[]) => void;
-    log: (...data: any[]) => void;
-    debug: (...data: any[]) => void;
+    error: Write;
+    warn: Write;
+    info: Write;
+    log: Write;
+    debug: Write;
     constructor(prefix: string, level?: LogLevel);
 }
 export {};

@@ -1,7 +1,12 @@
-import { parseMediaTypeFromString } from "../server/entity_parser";
-import { ComponentPMT, MediaType, ModuleListEntry, ProgramInfoMessage, ResponseMessage } from "../server/ws_api";
-import { Indicator, IP } from "./bml_browser";
+import { parseMediaTypeFromString } from "./entity_parser";
+import type { ComponentPMT, MediaType, ModuleListEntry, ProgramInfoMessage, ResponseMessage } from "../protocol/messages";
+import { type TextCoding } from "./media/arib_text";
+import { CustomEventTarget, Indicator, IP } from "./contracts";
+import { formatModuleRefForLog } from "./format";
+import { Diagnostics } from "./introspection";
 import { type Logger } from "./util/logger";
+import { defaultOffsetMinutesForNetwork, describeLocalTimeOffsetSource, resolveLocalTimeOffset, type LocalTimeOffsetSource } from "./time_offset";
+import type { AudioOutput } from "./media/audio_output";
 
 type Module = {
     moduleId: number,
@@ -74,6 +79,39 @@ type ModuleRequest = {
     filename: string | null,
     resolve: (resolveValue: CachedFile | null) => void,
     requestType: "lockModuleOnMemory" | "lockModuleOnMemoryEx" | undefined,
+    // 待ち始めた時刻 (performance.now)。何秒待っているかを報告するためだけに使う
+    requestedAt: number,
+};
+
+// 何を待っているかの説明 (P1)。応答が来ていない要求だけを列挙する
+export type PendingResource = {
+    module: string,
+    componentId: number,
+    moduleId: number,
+    filename: string | null,
+    requestType: "lockModuleOnMemory" | "lockModuleOnMemoryEx" | null,
+    ageMs: number,
+    // カルーセル待ちなら理由はこれで足りる。PMT/DIIに無いなら、待っても永久に来ない
+    reason: "component-not-in-pmt" | "module-not-in-dii" | "waiting-for-carousel" | "pmt-not-received",
+};
+
+export type ResourcesDescription = {
+    profile: number | null,
+    activeDocument: string | null,
+    startupComponentId: number,
+    pmtRetrieved: boolean,
+    pmt: { componentId: number, pid: number, streamType: number, dataComponentId: number | null }[],
+    dii: {
+        componentId: number, dataEventId: number, returnToEntryFlag: boolean | null,
+        modules: { moduleId: number, version: number, size: number }[],
+    }[],
+    cached: { componentId: number, moduleId: number, version: number, dataEventId: number, files: number, bytes: number }[],
+    locked: { componentId: number, moduleId: number, lockedBy: string, version: number, files: number }[],
+    pending: PendingResource[],
+    programInfo: {
+        serviceId: number | null, eventId: number | null, eventName: string | null,
+        originalNetworkId: number | null, transportStreamId: number | null,
+    } | null,
 };
 
 type RemoteResourceRequest = {
@@ -82,7 +120,7 @@ type RemoteResourceRequest = {
 };
 
 function moduleAndComponentToString(componentId: number, moduleId: number) {
-    return `${componentId.toString(16).padStart(2, "0")}/${moduleId.toString(16).padStart(4, "0")}`;
+    return formatModuleRefForLog(componentId, moduleId);
 }
 
 interface ResourcesEventMap {
@@ -93,12 +131,6 @@ interface ResourcesEventMap {
     "componentupdated": CustomEvent<{ component: DownloadComponentInfo }>;
     // PMT
     "pmtupdated": CustomEvent<{ prevComponents: Map<number, ComponentPMT>, components: Map<number, ComponentPMT> }>;
-}
-
-interface CustomEventTarget<M> {
-    addEventListener<K extends keyof M>(type: K, callback: EventListenerOrEventListenerObject, options?: AddEventListenerOptions | boolean): void;
-    dispatchEvent<K extends keyof M>(event: M[K]): boolean;
-    removeEventListener<K extends keyof M>(type: K, callback: EventListenerOrEventListenerObject, options?: EventListenerOptions | boolean): void;
 }
 
 export type ResourcesEventTarget = CustomEventTarget<ResourcesEventMap>;
@@ -151,6 +183,13 @@ class CacheMap {
             return false;
         }
     }
+
+    /** Drops every entry, revoking the blob URLs the way delete() does one at a time. */
+    public clear(): void {
+        for (const key of [...this.cachedRemoteResources.keys()]) {
+            this.delete(key);
+        }
+    }
 }
 
 function fromBase64(input: string): Uint8Array<ArrayBuffer> {
@@ -161,17 +200,23 @@ function fromBase64(input: string): Uint8Array<ArrayBuffer> {
     }
 }
 
-export enum Profile {
-    BS = 0x0007,
-    CS = 0x000b,
-    TrProfileA = 0x000c,
-    TrProfileC = 0x000d,
-}
+// Profile is the leaf client/profile.ts. Not re-exported from here: the compat re-export kept the
+// hub path load-bearing for the tests, which is the coupling the leaf move was meant to remove.
+import { Profile } from "./profile";
 
 export class Resources {
     private readonly indicator?: Indicator;
     private readonly eventTarget: ResourcesEventTarget = new EventTarget();
     private readonly ip: IP;
+    // P1: ページが何を待っているかをホストに見せるための記録。読むだけで、動作には関与しない
+    public readonly diagnostics: Diagnostics = new Diagnostics();
+    // P7: how undesignated ARIB text is read. `auto` is the Philippine reading (see arib_text.ts),
+    // and a host that needs upstream's strict reading sets "arib". The browser copies it from its
+    // options at construction; nothing else writes it.
+    public textCoding: TextCoding = "auto";
+    // P7 follow-up: the charset the current document declared, so table text can stop guessing UTF-8
+    // on a Japanese page. Content sets it on every document load.
+    public documentCharset: string | null = null;
     // ブラウザのキャッシュとは別に用意 どのみちblob urlの寿命の管理の役目もある
     // とりあえず10 MiB, 400ファイル
     private readonly cachedRemoteResources: CacheMap = new CacheMap(400, 1024 * 1024 * 10);
@@ -217,12 +262,19 @@ export class Resources {
     }
 
     public get currentDataEventId(): number | null {
-        return this._currentComponentId && (this.cachedComponents.get(this._currentComponentId)?.dataEventId ?? null);
+        // `_currentComponentId && …` returned 0 for component id 0 instead of its cached dataEventId,
+        // so the id is tested explicitly rather than used as a truth value.
+        if (this._currentComponentId == null) {
+            return null;
+        }
+        return this.cachedComponents.get(this._currentComponentId)?.dataEventId ?? null;
     }
 
     private cachedComponents = new Map<number, CachedComponent>();
 
     private downloadComponents = new Map<number, DownloadComponentInfo>();
+    /** 2.3.4: the audio codec the demuxer sniffed, per component, for the diagnostics snapshot. */
+    private readonly audioCodecRecords = new Map<number, { componentId: number, pid: number, streamType: number, codec: string, expectedCodec: string | null, labelAgrees: boolean }>();
 
     public getCachedFileBlobUrl(file: CachedFile, key?: any): string {
         let b = file.blobUrl.get(key)?.blobUrl;
@@ -304,7 +356,7 @@ export class Resources {
                     // lockedByがlockModuleOnMemoryExならlockModuleOnMemoryExをキャンセル
                     if ((lockedBy == null && r.requestType != null) || (lockedBy != null && r.requestType === lockedBy)) {
                         requestCanceled = true;
-                        this.logger.log(`${this.logger.prefix}${r.requestType} request was canceled due to unlockModules ${lockedBy ?? "lockModuleOnMemory+lockModuleOnMemoryEx"}`, moduleAndComponentToString(componentId, moduleId));
+                        this.logger.log(`${r.requestType} request was canceled due to unlockModules ${lockedBy ?? "lockModuleOnMemory+lockModuleOnMemoryEx"}`, moduleAndComponentToString(componentId, moduleId));
                         return false;
                     }
                     return true;
@@ -318,7 +370,7 @@ export class Resources {
 
     private revokeCachedFile(file: CachedFile): void {
         for (const blob of file.blobUrl.values()) {
-            this.logger.debug(`${this.logger.prefix}revoke`, blob.blobUrl);
+            this.logger.debug(`revoke`, blob.blobUrl);
             URL.revokeObjectURL(blob.blobUrl);
         }
         file.blobUrl.clear();
@@ -332,7 +384,7 @@ export class Resources {
         if (this.lockedComponents.get(componentId)?.modules?.has(module.moduleId)) {
             return;
         }
-        this.logger.debug(`${this.logger.prefix}revoke`, moduleAndComponentToString(componentId, module.moduleId));
+        this.logger.debug(`revoke`, moduleAndComponentToString(componentId, module.moduleId));
         for (const file of module.files.values()) {
             this.revokeCachedFile(file);
         }
@@ -352,7 +404,7 @@ export class Resources {
             moduleRequests.set(moduleId, moduleReq.filter((r) => {
                 if (r.requestType === lockedBy) {
                     requestCanceled = true;
-                    this.logger.log(`${this.logger.prefix}${lockedBy} request was canceled due to unlockModule`, moduleAndComponentToString(componentId, moduleId));
+                    this.logger.log(`${lockedBy} request was canceled due to unlockModule`, moduleAndComponentToString(componentId, moduleId));
                     return false;
                 }
                 return true;
@@ -375,6 +427,11 @@ export class Resources {
             return true;
         }
         return requestCanceled;
+    }
+
+    /** The audio codecs reported by the demuxer, for getDiagnostics() and status bars. */
+    public get audioCodecs(): { componentId: number, pid: number, streamType: number, codec: string, expectedCodec: string | null, labelAgrees: boolean }[] {
+        return [...this.audioCodecRecords.values()];
     }
 
     public componentExistsInDownloadInfo(componentId: number): boolean {
@@ -456,7 +513,49 @@ export class Resources {
 
     private currentTimeNearestPCRBase?: number;
     private _currentTimeUnixMillis?: number;
+    private _localTimeOffsetMinutes?: number;
+    /**
+     * C16: a host override for the broadcast local-time offset in minutes from UTC (PH is 480).
+     * `null` follows the stream's TOT descriptor, and both fall back to JST.
+     */
+    public timeZoneOffsetMinutes: number | null = null;
+    /** The audio-output seam: a host that plays ROM sounds/AIFF itself sets this. */
+    public audioOutput: AudioOutput | null = null;
     private maxTOTIntervalMillis = 30 * 1000; // STD-B10的には30秒に1回は送る必要がある ただし実際の運用は5秒間隔で送られる
+
+    /**
+     * C16: the stream's local-time offset from UTC in minutes — the host override, else the TOT's
+     * local_time_offset descriptor, else JST. The precedence lives in time_offset.ts so the
+     * configuration snapshot cannot state a different rule.
+     */
+    public get localTimeOffsetMinutes(): number {
+        // 2.4.7: an unset host offset follows the box for PH (+480) and JST for a Japanese stream, so
+        // a host that never configures the clock still shows the time its viewers expect.
+        return resolveLocalTimeOffset(
+            this.timeZoneOffsetMinutes,
+            this._localTimeOffsetMinutes ?? null,
+            defaultOffsetMinutesForNetwork(this.currentProgramInfo?.networkId, this.currentProgramInfo?.transportStreamId),
+        );
+    }
+
+    /** Where the offset in use came from: the host, the stream, or the JST default. */
+    public get localTimeOffsetSource(): LocalTimeOffsetSource {
+        return describeLocalTimeOffsetSource(this.timeZoneOffsetMinutes, this._localTimeOffsetMinutes ?? null);
+    }
+
+    /**
+ * The offset the box would use with no host setting and no stream declaration: +8:00 for a
+ * Philippine mux, +9:00 (JST) for a Japanese one. The configuration snapshot must use this, not a
+ * frozen JST constant, or it reports a clock the engine is not using.
+ */
+public get localTimeOffsetDefaultMinutes(): number {
+    return defaultOffsetMinutesForNetwork(this.currentProgramInfo?.networkId, this.currentProgramInfo?.transportStreamId);
+}
+
+/** The stream's own offset from the last TOT, null until one arrives. */
+    public get streamTimeOffsetMinutes(): number | null {
+        return this._localTimeOffsetMinutes ?? null;
+    }
 
     public get currentTimeUnixMillis(): number | null {
         if (this._currentTimeUnixMillis != null && this.nearestPCRBase != null && this.currentTimeNearestPCRBase != null) {
@@ -508,17 +607,26 @@ export class Resources {
                 creq.moduleRequests.delete(msg.moduleId);
                 for (const cb of callbacks) {
                     if (cb.filename == null) {
-                        this.logger.debug(`${this.logger.prefix}async fetch done`, str);
+                        this.logger.debug(`async fetch done`, str);
                         cb.resolve(cachedModule.files.get(null) ?? null);
                     } else {
                         const file = cachedModule.files.get(cb.filename);
-                        this.logger.debug(`${this.logger.prefix}async fetch done`, str, cb.filename);
+                        this.logger.debug(`async fetch done`, str, cb.filename);
                         cb.resolve(file ?? null);
                     }
                 }
                 this.setReceivingStatus();
             }
             this.eventTarget.dispatchEvent<"moduleupdated">(new CustomEvent("moduleupdated", { detail: { componentId: msg.componentId, dataEventId: msg.dataEventId, moduleId: msg.moduleId, version: msg.version } }));
+        } else if (msg.type === "audioCodec") {
+            this.audioCodecRecords.set(msg.componentId, {
+                componentId: msg.componentId,
+                pid: msg.pid,
+                streamType: msg.streamType,
+                codec: msg.codec,
+                expectedCodec: msg.expectedCodec,
+                labelAgrees: msg.labelAgrees,
+            });
         } else if (msg.type === "moduleListUpdated") {
             const component: DownloadComponentInfo = {
                 componentId: msg.componentId,
@@ -544,7 +652,7 @@ export class Resources {
                     if (!component.modules.has(moduleId)) {
                         // DIIに存在しない
                         for (const mreq of mreqs) {
-                            this.logger.debug(`${this.logger.prefix}async fetch done (failed) DII`, moduleAndComponentToString(msg.componentId, moduleId));
+                            this.logger.debug(`async fetch done (failed) DII`, moduleAndComponentToString(msg.componentId, moduleId));
                             mreq.resolve(null);
                         }
                         creqs.moduleRequests.delete(moduleId);
@@ -576,7 +684,7 @@ export class Resources {
                 for (const [moduleId, mreqs] of creqs.moduleRequests) {
                     // PMTに存在しない
                     for (const mreq of mreqs) {
-                        this.logger.debug(`${this.logger.prefix}async fetch done (failed) PMT`, moduleAndComponentToString(componentId, moduleId));
+                        this.logger.debug(`async fetch done (failed) PMT`, moduleAndComponentToString(componentId, moduleId));
                         mreq.resolve(null);
                     }
                     creqs.moduleRequests.delete(moduleId);
@@ -595,10 +703,14 @@ export class Resources {
         } else if (msg.type === "currentTime") {
             this.currentTimeNearestPCRBase = this.nearestPCRBase;
             this._currentTimeUnixMillis = msg.timeUnixMillis;
+            this._localTimeOffsetMinutes = msg.localTimeOffsetMinutes;
         } else if (msg.type === "pcr") {
             this.nearestPCRBase = msg.pcrBase;
         } else if (msg.type === "error") {
-            this.logger.error(`${this.logger.prefix}stream error`, msg);
+            this.logger.error(`stream error`, msg);
+            // The page can look healthy while the broadcaster reports a failure, so surface it in
+            // the diagnostics snapshot rather than only in the log.
+            this.diagnostics.streamError(msg.message);
         }
     }
 
@@ -647,7 +759,18 @@ export class Resources {
         if (components.length > 4) {
             return { component: null, module: null, filename: null };
         }
-        return { component: components[1] ?? null, module: components[2] ?? null, filename: components[3] == null ? null : decodeURI(components[3]) };
+        // decodeURI throws URIError on a malformed escape. This is the same failure the callers' other
+        // accessors answer with null, so a bad reference resolves to "no reference", not an exception.
+        let filename: string | null = null;
+        if (components[3] != null) {
+            try {
+                filename = decodeURI(components[3]);
+            } catch (caughtError) {
+                this.logger.error(`module reference has a malformed escape`, components[3], caughtError);
+                return { component: null, module: null, filename: null };
+            }
+        }
+        return { component: components[1] ?? null, module: components[2] ?? null, filename };
     }
 
     public parseURLEx(url: string | null | undefined): { componentId: number | null, moduleId: number | null, filename: string | null } {
@@ -660,7 +783,7 @@ export class Resources {
         if (!Number.isInteger(moduleId)) {
             return { componentId, moduleId: null, filename: null };
         }
-        return { componentId, moduleId, filename: filename == null ? null : filename };
+        return { componentId, moduleId, filename };
     }
 
     public parseAudioReference(url: string): { componentId: number | null, channelId: number | null } {
@@ -705,7 +828,7 @@ export class Resources {
         if (cachedComponent == null) {
             cachedComponent = this.cachedComponents.get(componentId);
             if (cachedComponent == null) {
-                this.logger.log(`${this.logger.prefix}component not cached `, url);
+                this.logger.debug(`component not cached `, url);
                 return null;
             }
         }
@@ -714,7 +837,7 @@ export class Resources {
             cachedComponent = this.cachedComponents.get(componentId);
             cachedModule = cachedComponent?.modules?.get(moduleId);
             if (cachedModule == null) {
-                this.logger.log(`${this.logger.prefix}module not cached `, url);
+                this.logger.debug(`module not cached `, url);
                 return null;
             }
         }
@@ -731,7 +854,20 @@ export class Resources {
         if (this.ip.get == null || this.activeDocument == null || this.baseURIDirectory == null) {
             return null;
         }
-        const full = this.activeDocument.startsWith("http://") || this.activeDocument.startsWith("https://") ? new URL(url, this.activeDocument).toString() : url;
+        const full = this.activeDocument.startsWith("http://") || this.activeDocument.startsWith("https://")
+            ? resolveURLOrNull(url, this.activeDocument)
+            : url;
+        if (full == null) {
+            // A malformed reference must not reject: this method's contract is a null result.
+            this.logger.error(`malformed resource url`, url, this.activeDocument);
+            return null;
+        }
+        // Content-driven subresource fetches get the same scope decision as navigation, so a page
+        // cannot reach outside its base URI directory by asking for an image or a stylesheet.
+        if (!this.checkBaseURIDirectory(full)) {
+            this.logger.error(`base URI directory violation (subresource)`, full);
+            return null;
+        }
         const cachedFile = this.cachedRemoteResources.get(full);
         if (typeof cachedFile !== "undefined") {
             return cachedFile;
@@ -756,11 +892,21 @@ export class Resources {
         const requests2: RemoteResourceRequest[] = [];
         this.remoteResourceRequests.set(full, requests2);
         this.indicator?.setNetworkingGetStatus(true);
-        const { response, headers } = await this.ip.get(full);
+        let fetched;
+        try {
+            fetched = await this.ip.get(full);
+        } catch (e) {
+            // A transport failure resolves null like an empty response, so callers only ever see one
+            // failure mode from this method.
+            this.logger.error(`fetch failed`, full, e);
+            fetched = null;
+        }
         this.remoteResourceRequests.delete(full);
         if (this.remoteResourceRequests.size === 0) {
             this.indicator?.setNetworkingGetStatus(false);
         }
+        const response = fetched?.body ?? null;
+        const headers = fetched?.headers ?? null;
         if (response == null || headers == null) {
             for (const { resolve } of requests2) {
                 resolve(null);
@@ -796,7 +942,12 @@ export class Resources {
         if (this.ip.get == null || this.activeDocument == null || this.baseURIDirectory == null) {
             return;
         }
-        const full = this.activeDocument.startsWith("http://") || this.activeDocument.startsWith("https://") ? new URL(url, this.activeDocument).toString() : url;
+        const full = this.activeDocument.startsWith("http://") || this.activeDocument.startsWith("https://")
+            ? resolveURLOrNull(url, this.activeDocument)
+            : url;
+        if (full == null) {
+            return;
+        }
         this.cachedRemoteResources.delete(full);
     }
 
@@ -831,10 +982,10 @@ export class Resources {
         }
         // PMTにcomponentが存在しかつDIIにmoduleが存在するまたはDIIが取得されていないときにコールバックを登録
         // TODO: ModuleUpdated用にDII取得後に存在しないことが判明したときの処理が必要
-        this.logger.debug(`${this.logger.prefix}async fetch requested`, url);
+        this.logger.debug(`async fetch requested`, url);
         return new Promise((resolve, _) => {
             const c = this.componentRequests.get(componentId);
-            const entry = { filename, resolve, requestType };
+            const entry = { filename, resolve, requestType, requestedAt: performance.now() };
             if (c == null) {
                 this.componentRequests.set(componentId, { moduleRequests: new Map<number, ModuleRequest[]>([[moduleId, [entry]]]) });
             } else {
@@ -867,16 +1018,156 @@ export class Resources {
         }
     }
 
-    private programInfoCallbacks: ((msg: ProgramInfoMessage) => void)[] = []
+    /**
+     * P1: the requests that have not been answered, with the reason. This is the difference
+     * between "the carousel is slow" and "this module is not in the DII, so it will never
+     * arrive" — the two look identical from outside, and only one of them is worth waiting for.
+     */
+    public getPendingResources(): PendingResource[] {
+        const now = performance.now();
+        const pending: PendingResource[] = [];
+        for (const [componentId, componentRequests] of this.componentRequests) {
+            for (const [moduleId, requests] of componentRequests.moduleRequests) {
+                if (requests.length === 0) {
+                    continue;
+                }
+                let since = now;
+                let requestType: "lockModuleOnMemory" | "lockModuleOnMemoryEx" | null = null;
+                for (const request of requests) {
+                    since = Math.min(since, request.requestedAt);
+                    if (request.requestType != null) {
+                        requestType = request.requestType;
+                    }
+                }
+                let reason: PendingResource["reason"];
+                if (!this.pmtRetrieved) {
+                    reason = "pmt-not-received";
+                } else if (!this.getPMTComponent(componentId)) {
+                    reason = "component-not-in-pmt";
+                } else {
+                    const dii = this.downloadComponents.get(componentId);
+                    reason = dii != null && !dii.modules.has(moduleId) ? "module-not-in-dii" : "waiting-for-carousel";
+                }
+                pending.push({
+                    module: `/${moduleAndComponentToString(componentId, moduleId)}`,
+                    componentId,
+                    moduleId,
+                    filename: requests[0].filename,
+                    requestType,
+                    ageMs: now - since,
+                    reason,
+                });
+            }
+        }
+        return pending;
+    }
 
-    public getProgramInfoAsync(): Promise<ProgramInfoMessage> {
+    /** P1: what the stream has actually delivered, as opposed to what the page asked for. */
+    public describe(): ResourcesDescription {
+        const pmt: ResourcesDescription["pmt"] = [];
+        for (const component of this.pmtComponents.values()) {
+            pmt.push({
+                componentId: component.componentId,
+                pid: component.pid,
+                streamType: component.streamType,
+                dataComponentId: component.dataComponentId ?? null,
+            });
+        }
+        const dii: ResourcesDescription["dii"] = [];
+        for (const component of this.downloadComponents.values()) {
+            const modules: { moduleId: number, version: number, size: number }[] = [];
+            for (const module of component.modules.values()) {
+                modules.push({ moduleId: module.id, version: module.version, size: module.size });
+            }
+            dii.push({
+                componentId: component.componentId,
+                dataEventId: component.dataEventId,
+                returnToEntryFlag: component.returnToEntryFlag ?? null,
+                modules,
+            });
+        }
+        const cached: ResourcesDescription["cached"] = [];
+        for (const component of this.cachedComponents.values()) {
+            for (const module of component.modules.values()) {
+                let bytes = 0;
+                for (const file of module.files.values()) {
+                    bytes += file.data.length;
+                }
+                cached.push({
+                    componentId: component.componentId,
+                    moduleId: module.moduleId,
+                    version: module.version,
+                    dataEventId: module.dataEventId,
+                    files: module.files.size,
+                    bytes,
+                });
+            }
+        }
+        const locked: ResourcesDescription["locked"] = [];
+        for (const component of this.lockedComponents.values()) {
+            for (const module of component.modules.values()) {
+                locked.push({
+                    componentId: component.componentId,
+                    moduleId: module.moduleId,
+                    lockedBy: module.lockedBy,
+                    version: module.version,
+                    files: module.files.size,
+                });
+            }
+        }
+        const info = this.currentProgramInfo;
+        return {
+            profile: this._profile ?? null,
+            activeDocument: this._activeDocument,
+            startupComponentId: this.startupComponentId,
+            pmtRetrieved: this.pmtRetrieved,
+            pmt,
+            dii,
+            cached,
+            locked,
+            pending: this.getPendingResources(),
+            programInfo: info == null ? null : {
+                serviceId: info.serviceId,
+                eventId: info.eventId,
+                eventName: info.eventName,
+                originalNetworkId: info.originalNetworkId,
+                transportStreamId: info.transportStreamId,
+            },
+        };
+    }
+
+    private programInfoCallbacks: ((msg: ProgramInfoMessage | null) => void)[] = []
+
+    /**
+     * Resolves with the current program info, or with null if the document exits before any arrives.
+     * The null result is the documented failure mode: callers must not hold a promise that can only
+     * settle by a broadcast that will never come.
+     */
+    public getProgramInfoAsync(): Promise<ProgramInfoMessage | null> {
         if (this.currentProgramInfo != null) {
             return Promise.resolve(this.currentProgramInfo);
         }
-        return new Promise<ProgramInfoMessage>((resolve, _) => {
+        return new Promise<ProgramInfoMessage | null>((resolve, _) => {
             this.programInfoCallbacks.push(resolve);
             this.setReceivingStatus();
         });
+    }
+
+    /**
+     * Settles every waiting getProgramInfoAsync with null when the document goes away, so a page
+     * transition cannot leak resolvers that would only ever be called by the next program.
+     */
+    public abandonPendingProgramInfo(reason: string): void {
+        if (this.programInfoCallbacks.length === 0) {
+            return;
+        }
+        this.logger.debug(`abandoning pending programInfo waiters`, reason, this.programInfoCallbacks.length);
+        const callbacks = this.programInfoCallbacks.slice();
+        this.programInfoCallbacks.length = 0;
+        for (const cb of callbacks) {
+            cb(null);
+        }
+        this.setReceivingStatus();
     }
 
     public parseServiceReference(serviceRef: string): { originalNetworkId: number | null, transportStreamId: number | null, serviceId: number | null } {
@@ -922,8 +1213,16 @@ export class Resources {
         this.eventTarget.removeEventListener(type, callback as EventListener, options);
     }
 
+    /**
+     * Drops every downloaded component and cached remote file, revoking the blob URLs first.
+     * Content calls this after a PID change, when the previous service's components are unreachable.
+     */
     public clearCache(): void {
-        // this.cachedComponents.clear();
+        for (const component of this.cachedComponents.values()) {
+            this.revokeCachedComponent(component);
+        }
+        this.cachedComponents.clear();
+        this.cachedRemoteResources.clear();
     }
 
     public get startupComponentId(): number {
@@ -944,20 +1243,56 @@ export class Resources {
         this.baseURIDirectory = uriToBaseURIDirectory(baseURIDirectory);
     }
 
-    public checkBaseURIDirectory(url: string) {
+    /**
+     * Whether `url` is inside the base URI directory. The scope is compared as a URL — scheme and
+     * host must match, and the target must sit at a path boundary — so `http://h/a` does not admit
+     * `https://h/a` and does not admit `http://h/ab`.
+     */
+    public checkBaseURIDirectory(url: string): boolean {
         if (this.baseURIDirectory == null) {
             return false;
         }
-        const base = uriToBaseURIDirectory(this.activeDocument?.startsWith("http://") || this.activeDocument?.startsWith("https://") ? new URL(url, this.activeDocument).toString() : url);
-        return base.startsWith(this.baseURIDirectory);
+        const absolute = this.activeDocument?.startsWith("http://") || this.activeDocument?.startsWith("https://")
+            ? resolveURLOrNull(url, this.activeDocument)
+            : url;
+        if (absolute == null) {
+            return false;
+        }
+        const target = parseURLOrNull(absolute);
+        const base = parseURLOrNull(this.baseURIDirectory);
+        if (target == null || base == null) {
+            return false;
+        }
+        if (target.protocol !== base.protocol || target.host !== base.host) {
+            return false;
+        }
+        const basePath = base.pathname.replace(/\/$/, "");
+        return target.pathname === basePath || target.pathname.startsWith(basePath + "/");
+    }
+}
+
+function parseURLOrNull(uri: string): URL | null {
+    try {
+        return new URL(uri);
+    } catch {
+        return null;
+    }
+}
+
+/** Resolves `url` against `base`, or null when either is not a parseable URL. */
+function resolveURLOrNull(url: string, base: string): string | null {
+    try {
+        return new URL(url, base).toString();
+    } catch {
+        return null;
     }
 }
 
 function uriToBaseURIDirectory(uri: string): string {
     const url = new URL(uri);
-    // host: ポート番号含む
+    // host: ポート番号含む — checkBaseURIDirectory compares url.host, so the base must carry the port
     // hostname: 含まない
-    const hostname = url.hostname.toLowerCase();
+    const host = url.host.toLowerCase();
     let pathname = url.pathname;
     const lastSlash = pathname.lastIndexOf("/");
     if (lastSlash !== -1 && lastSlash !== pathname.length - 1) {
@@ -972,5 +1307,5 @@ function uriToBaseURIDirectory(uri: string): string {
             return e;
         }
     });
-    return hostname + pathname;
+    return `${url.protocol}//${host}${pathname}`;
 }

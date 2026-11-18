@@ -37,13 +37,15 @@ exports.defineBuiltinBinding = defineBuiltinBinding;
 exports.defineBrowserBinding = defineBrowserBinding;
 exports.defineBinaryTableBinding = defineBinaryTableBinding;
 const es2_1 = require("../../es2");
-const BT = __importStar(require("../binary_table"));
-const resource_1 = require("../resource");
-const bmlDate = __importStar(require("../date"));
-const bmlNumber = __importStar(require("../number"));
-const bmlString = __importStar(require("../string"));
+const BT = __importStar(require("../nvram/binary_table"));
+const profile_1 = require("../profile");
+const bmlDate = __importStar(require("./es2_date"));
+const bmlNumber = __importStar(require("./es2_number"));
+const bmlString = __importStar(require("./es2_string"));
+const format_1 = require("../format");
 const text_1 = require("../text");
-const LAUNCH_DOCUMENT_CALLED = { type: "launchDocumentCalled" };
+const arib_text_1 = require("../media/arib_text");
+const signals_1 = require("./signals");
 function wrapArray(ctx, array) {
     if (!Array.isArray(array)) {
         return array;
@@ -67,7 +69,7 @@ function wrapDate(ctx, date) {
         return date;
     }
 }
-function defineBuiltinBinding(context, resources) {
+function defineBuiltinBinding(context, env) {
     context.realm.intrinsics.Number.properties.set("MAX_VALUE", {
         readOnly: true,
         dontEnum: true,
@@ -89,14 +91,14 @@ function defineBuiltinBinding(context, resources) {
             for (const arg of args) {
                 codes.push(yield* (0, es2_1.toNumber)(ctx, arg, caller));
             }
-            if (resources.profile === resource_1.Profile.TrProfileC) {
+            if (env.profile === profile_1.Profile.TrProfileC) {
                 return bmlString.shiftJISFromCharCode(...codes);
             }
             return bmlString.eucJPFromCharCode(...codes);
         }, 1, "fromCharCode"),
     });
     // 比較で使うcharCodeAtの定義
-    if (resources.profile === resource_1.Profile.TrProfileC) {
+    if (env.profile === profile_1.Profile.TrProfileC) {
         context.realm.intrinsics.StringPrototypeCharCodeAt = function shiftJISCharCodeAt(str, pos) {
             return bmlString.shiftJISCharCodeAt.call(str, pos);
         };
@@ -113,15 +115,15 @@ function defineBuiltinBinding(context, resources) {
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* stringCharCodeAt(ctx, self, args, caller) {
             const str = yield* (0, es2_1.toString)(ctx, self, caller);
             const pos = yield* (0, es2_1.toNumber)(ctx, args[0], caller);
-            if (resources.profile === resource_1.Profile.TrProfileC) {
+            if (env.profile === profile_1.Profile.TrProfileC) {
                 return bmlString.shiftJISCharCodeAt.call(str, pos);
             }
             return bmlString.eucJPCharCodeAt.call(str, pos);
         }, 1, "charCodeAt"),
     });
     const date = (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* date(_ctx, _self, _args) {
-        if (resources.currentTimeUnixMillis != null) {
-            return bmlDate.toString.call(new Date(resources.currentTimeUnixMillis));
+        if (env.currentTimeUnixMillis != null) {
+            return bmlDate.toString.call(new Date(env.currentTimeUnixMillis));
         }
         else {
             return bmlDate.toString.call(new Date());
@@ -140,8 +142,8 @@ function defineBuiltinBinding(context, resources) {
             }
         }
         else if (args.length === 0) {
-            if (resources.currentTimeUnixMillis != null) {
-                value = new Date(resources.currentTimeUnixMillis);
+            if (env.currentTimeUnixMillis != null) {
+                value = new Date(env.currentTimeUnixMillis);
             }
             else {
                 value = new Date();
@@ -351,7 +353,7 @@ function defineBrowserBinding(context, resources, browserAPI, content, epg, logg
         value: greg,
     });
     function* launchDocument(documentName, transitionStyle) {
-        logger.log(`${logger.prefix}launchDocument`, documentName, transitionStyle);
+        logger.log(`launchDocument`, documentName, transitionStyle);
         if (documentName.startsWith("#")) {
             // Cプロファイル TR-B14 第三分冊
             // 8.2.3.4 #fragment運用における受信機動作およびコンテンツガイドライン
@@ -360,55 +362,56 @@ function defineBrowserBinding(context, resources, browserAPI, content, epg, logg
             content.focusFragment(documentName);
             return 0;
         }
-        const r = content.launchDocument(String(documentName));
-        yield LAUNCH_DOCUMENT_CALLED;
-        return r;
+        content.launchDocument(String(documentName)).catch((e) => logger.error(`launchDocument failed`, documentName, e));
+        yield signals_1.LAUNCH_DOCUMENT_CALLED;
+        return NaN;
     }
     function* reloadActiveDocument() {
-        logger.log(`${logger.prefix}reloadActiveDocument`);
-        const r = content.launchDocument(browserAPI.browser.getActiveDocument());
-        yield LAUNCH_DOCUMENT_CALLED;
-        return r;
+        logger.log(`reloadActiveDocument`);
+        const activeDocument = browserAPI.browser.getActiveDocument();
+        content.launchDocument(activeDocument).catch((e) => logger.error(`reloadActiveDocument failed`, activeDocument, e));
+        yield signals_1.LAUNCH_DOCUMENT_CALLED;
+        return NaN;
     }
     function* quitDocument() {
-        logger.log(`${logger.prefix}quitDocument`);
-        content.quitDocument();
-        yield LAUNCH_DOCUMENT_CALLED;
+        logger.log(`quitDocument`);
+        content.quitDocument().catch((e) => logger.error(`quitDocument failed`, e));
+        yield signals_1.LAUNCH_DOCUMENT_CALLED;
         return NaN;
     }
     function* X_DPA_launchDocWithLink(documentName, transitionStyle) {
-        logger.log(`${logger.prefix}%cX_DPA_launchDocWithLink`, "font-size: 1.5em", documentName);
-        if (resources.profile !== resource_1.Profile.TrProfileC) {
-            yield LAUNCH_DOCUMENT_CALLED;
+        logger.log(`X_DPA_launchDocWithLink`, documentName);
+        if (resources.profile !== profile_1.Profile.TrProfileC) {
+            yield signals_1.LAUNCH_DOCUMENT_CALLED;
             return NaN;
         }
         // 絶対 URI を使用すること (TR-B14 第三分冊 8.3.10.2)
         // http: / https: のいずれも可 (同 8.3.10.3)
         if (!documentName.startsWith("http://") && !documentName.startsWith("https://")) {
-            yield LAUNCH_DOCUMENT_CALLED;
+            yield signals_1.LAUNCH_DOCUMENT_CALLED;
             return NaN;
         }
         if (!resources.isInternetContent) {
             // 放送受信状態で使われた場合失敗動作となる
             // エラーメッセージを表示すべき (8.3.11.4)
-            content.quitDocument();
-            yield LAUNCH_DOCUMENT_CALLED;
+            content.quitDocument().catch((e) => logger.error(`quitDocument failed`, e));
+            yield signals_1.LAUNCH_DOCUMENT_CALLED;
             return NaN;
         }
-        const r = content.launchDocument(documentName, { withLink: true });
-        yield LAUNCH_DOCUMENT_CALLED;
-        return r;
+        content.launchDocument(documentName, { withLink: true }).catch((e) => logger.error(`X_DPA_launchDocWithLink failed`, documentName, e));
+        yield signals_1.LAUNCH_DOCUMENT_CALLED;
+        return NaN;
     }
     function* epgTune(service_ref) {
-        logger.log(`${logger.prefix}%cepgTune`, "font-size: 1.5em", service_ref);
+        logger.log(`epgTune`, service_ref);
         const { originalNetworkId, transportStreamId, serviceId } = resources.parseServiceReference(service_ref);
         if (originalNetworkId == null || transportStreamId == null || serviceId == null) {
-            yield LAUNCH_DOCUMENT_CALLED;
+            yield signals_1.LAUNCH_DOCUMENT_CALLED;
             return NaN;
         }
         else {
             const r = epg.tune?.(originalNetworkId, transportStreamId, serviceId);
-            yield LAUNCH_DOCUMENT_CALLED;
+            yield signals_1.LAUNCH_DOCUMENT_CALLED;
             return r;
         }
     }
@@ -653,12 +656,6 @@ function defineBrowserBinding(context, resources, browserAPI, content, epg, logg
             return browserAPI.browser.lockScreen();
         }, 0, "lockScreen"),
     });
-    browser.properties.set("unlockScreen", {
-        ...desc,
-        value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* browser$unlockScreen(ctx, _self, args, caller) {
-            return browserAPI.browser.unlockScreen();
-        }, 0, "unlockScreen"),
-    });
     browser.properties.set("getBrowserSupport", {
         ...desc,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* browser$getBrowserSupport(ctx, _self, args, caller) {
@@ -729,6 +726,32 @@ function defineBrowserBinding(context, resources, browserAPI, content, epg, logg
             return wrapArray(ctx, r);
         }, 2, "readPersistentArray"),
     });
+    /**
+     * Reads the binary structure's fields out of a page-supplied object, coercing each to its
+     * declared type. Returns null when the value is not an object, which the callers turn into NaN.
+     */
+    function* readFieldArray(ctx, fields, value, caller) {
+        if (!(0, es2_1.isObject)(value)) {
+            return null;
+        }
+        const a = [];
+        for (let i = 0; i < fields.length; i++) {
+            const field = fields[i];
+            switch (field.type) {
+                case BT.BinaryTableType.Boolean:
+                    a[i] = (0, es2_1.toBoolean)(yield* (0, es2_1.getProperty)(ctx, value, String(i), caller));
+                    break;
+                case BT.BinaryTableType.UnsignedInteger:
+                case BT.BinaryTableType.Integer:
+                    a[i] = yield* (0, es2_1.toNumber)(ctx, yield* (0, es2_1.getProperty)(ctx, value, String(i), caller), caller);
+                    break;
+                case BT.BinaryTableType.String:
+                    a[i] = yield* (0, es2_1.toString)(ctx, yield* (0, es2_1.getProperty)(ctx, value, String(i), caller), caller);
+                    break;
+            }
+        }
+        return a;
+    }
     browser.properties.set("writePersistentArray", {
         ...desc,
         value: (0, es2_1.newNativeFunction)(context.realm.intrinsics.FunctionPrototype, function* browser$writePersistentArray(ctx, _self, args, caller) {
@@ -738,24 +761,9 @@ function defineBrowserBinding(context, resources, browserAPI, content, epg, logg
             if (fields == null) {
                 return NaN;
             }
-            if (!(0, es2_1.isObject)(args[2])) {
+            const a = yield* readFieldArray(ctx, fields, args[2], caller);
+            if (a == null) {
                 return NaN;
-            }
-            const a = [];
-            for (let i = 0; i < fields.length; i++) {
-                const field = fields[i];
-                switch (field.type) {
-                    case BT.BinaryTableType.Boolean:
-                        a[i] = (0, es2_1.toBoolean)(yield* (0, es2_1.getProperty)(ctx, args[2], String(i), caller));
-                        break;
-                    case BT.BinaryTableType.UnsignedInteger:
-                    case BT.BinaryTableType.Integer:
-                        a[i] = yield* (0, es2_1.toNumber)(ctx, yield* (0, es2_1.getProperty)(ctx, args[2], String(i), caller), caller);
-                        break;
-                    case BT.BinaryTableType.String:
-                        a[i] = yield* (0, es2_1.toString)(ctx, yield* (0, es2_1.getProperty)(ctx, args[2], String(i), caller), caller);
-                        break;
-                }
             }
             return browserAPI.browser.writePersistentArray(filename, structure, a);
         }, 3, "writePersistentArray"),
@@ -775,24 +783,9 @@ function defineBrowserBinding(context, resources, browserAPI, content, epg, logg
             if (fields == null) {
                 return NaN;
             }
-            if (!(0, es2_1.isObject)(args[2])) {
+            const a = yield* readFieldArray(ctx, fields, args[2], caller);
+            if (a == null) {
                 return NaN;
-            }
-            const a = [];
-            for (let i = 0; i < fields.length; i++) {
-                const field = fields[i];
-                switch (field.type) {
-                    case BT.BinaryTableType.Boolean:
-                        a[i] = (0, es2_1.toBoolean)(yield* (0, es2_1.getProperty)(ctx, args[2], String(i), caller));
-                        break;
-                    case BT.BinaryTableType.UnsignedInteger:
-                    case BT.BinaryTableType.Integer:
-                        a[i] = yield* (0, es2_1.toNumber)(ctx, yield* (0, es2_1.getProperty)(ctx, args[2], String(i), caller), caller);
-                        break;
-                    case BT.BinaryTableType.String:
-                        a[i] = yield* (0, es2_1.toString)(ctx, yield* (0, es2_1.getProperty)(ctx, args[2], String(i), caller), caller);
-                        break;
-                }
             }
             return browserAPI.browser.writePersistentArrayWithAccessCheck(filename, structure, a);
         }, 3, "writePersistentArrayWithAccessCheck"),
@@ -1164,32 +1157,50 @@ function defineBinaryTableBinding(context, resources, logger) {
     function* BinaryTable$construct(ctx, args, caller) {
         const table_ref = yield* (0, es2_1.toString)(ctx, args[0], caller);
         const structure = yield* (0, es2_1.toString)(ctx, args[1], caller);
+        // P1: 表の読み出しとその結果を記録する。nullが返ったとき、ページ側には「行が無い」と
+        // 区別が付かない — ここが両者を分ける唯一の場所
+        const diagnostics = resources.diagnostics;
+        const requestedId = resources.parseURLEx(table_ref);
+        const normalized = requestedId.componentId != null && requestedId.moduleId != null
+            ? `${(0, format_1.formatModuleRef)(requestedId.componentId, requestedId.moduleId)}${requestedId.filename == null ? "" : "/" + requestedId.filename}`
+            : null;
         let res;
         try {
             res = yield resources.fetchResourceAsync(table_ref);
         }
         catch (error) {
-            logger.error(`${logger.prefix}Failed to fetch BinaryTable resource`, table_ref, error);
+            logger.error(`Failed to fetch BinaryTable resource`, table_ref, error);
+            diagnostics.table(table_ref, normalized, structure, "fetch-failed", { error: String(error) });
             return null;
         }
         if (!res) {
-            logger.log(`${logger.prefix}BinaryTable`, table_ref, "not found");
+            logger.debug(`BinaryTable`, table_ref, "not found");
+            diagnostics.table(table_ref, normalized, structure, "not-found");
             return null;
         }
-        logger.log(`${logger.prefix}new BinaryTable`, table_ref);
+        logger.debug(`new BinaryTable`, table_ref);
         let buffer = res.data;
         const host = (0, es2_1.newObject)($BinaryTable$prototype);
         host.internalProperties.class = "BinaryTable";
         host.internalProperties.value = NaN;
         let bt;
         try {
-            bt = new BT.BinaryTable(buffer, structure, (0, text_1.getTextDecoder)(resources.profile));
+            // P7: `.btb` string fields are ARIB text, so they are read by the designation rule and
+            // not by the profile's plain decoder. The fallback is that decoder, so every field the
+            // rule does not claim decodes byte for byte as before.
+            // A Japanese document declares EUC-JP or Shift_JIS; its table text must not be guessed as
+            // UTF-8, and its fallback is its own decoder, not the profile default.
+            const fallback = (0, text_1.getDeclaredTextDecoder)(resources.profile, resources.documentCharset);
+            const coding = (0, arib_text_1.tableTextCoding)(resources.documentCharset, resources.textCoding);
+            bt = new BT.BinaryTable(buffer, structure, (input) => (0, arib_text_1.decodeARIBText)(input, fallback, coding));
         }
         catch (error) {
             // 壊れたデータや構造指定は BML 側へ例外を漏らさず null で通知する
-            logger.error(`${logger.prefix}Failed to create BinaryTable`, table_ref, error);
+            logger.error(`Failed to create BinaryTable`, table_ref, error);
+            diagnostics.table(table_ref, normalized, structure, "unparseable", { bytes: buffer.length, error: String(error) });
             return null;
         }
+        diagnostics.table(table_ref, normalized, structure, "found", { rows: bt.nrow, columns: bt.ncolumn, bytes: buffer.length });
         host.internalProperties.hostObjectValue = bt;
         host.properties.set("nrow", {
             ...desc,

@@ -1,0 +1,94 @@
+# NOTICE
+
+web-bml-PHL is derived work, and this page is the readable map of it: who owns what, where every part
+came from, and which third-party work is bundled. The binding terms are [`LICENSE.md`](LICENSE.md) for the
+engine and the notices under [`fonts/`](fonts/) for the font software.
+
+## Owner and marker
+
+| | |
+|---|---|
+| project | web-bml-PHL, maintained by **PBCNX** |
+| project author | **The web-bml-PHL Authors (PBCNX)**, the copyright line in [`LICENSE.md`](LICENSE.md) |
+| public repository | `PBCNX/web-bml-PHL` |
+| **provenance marker** | `web-bml-phl-pbcnx` |
+
+The marker is a **visible attribution string, not telemetry**. It is exported as `PROVENANCE` from the
+engine's leaf contracts and carried in `getDiagnostics().provenance`, so a host's diagnostic report says
+which project it came from. It performs no network or device I/O, carries no user or device identifier,
+and changes no protocol bytes. It exists so the origin is searchable and so the notices travel with
+copies.
+
+## Ownership
+
+| part | copyright | license |
+|---|---|---|
+| upstream engine | Copyright (c) 2022 otya — [otya128/web-bml](https://github.com/otya128/web-bml), the original; this fork descends from [tsukumijima/web-bml](https://github.com/tsukumijima/web-bml), its KonomiTV fork | MIT |
+| this fork (changes, protocol layer, PH profile, fonts pipeline) | Copyright (c) 2026 The web-bml-PHL Authors (PBCNX) | MIT |
+| `BMLPH-Sans-*`, `BMLPH-SansLite-*` and the chunks | Copyright (c) 2026 The web-bml-PHL Authors (PBCNX) (modifications); derived from Noto, Copyright (c) Google LLC | SIL OFL 1.1 |
+| `BMLPH-RoundGothic-Regular.*` | Kosugi Maru, Copyright (c) Motoya Font (Apache-2.0); Huninn, Copyright (c) justfont (OFL 1.1); Noto fillers, Copyright (c) Google LLC (OFL 1.1); modifications Copyright (c) 2026 The web-bml-PHL Authors (PBCNX) | Apache-2.0 AND OFL-1.1 |
+
+Both engine lines are in [`LICENSE.md`](LICENSE.md); the fork keeps upstream's license and adds its own.
+The font notices ship as [`fonts/OFL-BMLPH-Sans.txt`](fonts/OFL-BMLPH-Sans.txt),
+[`fonts/LICENSE.txt`](fonts/LICENSE.txt), [`fonts/AUTHORS.txt`](fonts/AUTHORS.txt),
+[`fonts/CONTRIBUTORS.txt`](fonts/CONTRIBUTORS.txt) and [`fonts/NOTICE.txt`](fonts/NOTICE.txt), and
+`fonts/package.json` lists every one of them in `files`.
+
+A contribution is accepted under the license of the file it touches: MIT for the engine, OFL 1.1 for new
+glyphs in the Sans faces, and the source face's terms for anything copied into RoundGothic. Do not add a
+font file without its notice.
+
+## The engine
+
+| | |
+|---|---|
+| upstream | [tsukumijima/web-bml](https://github.com/tsukumijima/web-bml) (fork point `faf4d96`, which merges `otya128:master`), MIT; [otya128/web-bml](https://github.com/otya128/web-bml) is the original |
+| fork point | `faf4d96` — the `master` branch here is that commit and never moves |
+| this fork | `main`, see [`CHANGELOG.md`](CHANGELOG.md) |
+| build | `tsc` writes the committed `dist/`; `test/dist-hygiene.test.mjs` checks it matches the sources |
+| every change | listed in [`docs/PATCHES.md`](docs/PATCHES.md) with its source and, where it matters, its numbers |
+
+`es2/` is the ECMAScript evaluator vendored from upstream, not written here.
+
+`client/css/vendor/` is [reworkcss/css](https://github.com/reworkcss/css) 3.0.2, MIT, as forked by
+otya128 and pinned by the engine; its license is `client/css/vendor/LICENSE`. It is **compiled with
+the engine**, not resolved from a package: until 3.0.3 it was a `file:` dependency, and npm 12 cannot
+install a package that carries one into a host (the link is judged dead while its target is being
+replaced). Nothing is fetched from a URL either — npm 12 refuses remote-tarball dependencies by
+default — so the parser ships as source and a host install has no `file:` dependency to resolve.
+
+## The fonts
+
+| source | used for | license | source revision |
+|---|---|---|---|
+| Noto Sans, Noto Sans Mono CJK JP, Noto Sans Symbols, Noto Sans Symbols 2, Noto Sans Math, Noto Serif Tibetan | base of BML-PH Sans / Lite | OFL 1.1 | Google Noto release used for the 2.1.0 build |
+| Huninn | rounded filler glyphs | OFL 1.1 | justfont release |
+| Kosugi Maru | base of BML-PH RoundGothic | Apache-2.0 | `googlefonts/kosugi-maru` `bd22c671a9ffc10cc4313e6f2fd75f2b86d6b14b` |
+
+The cell rules (Latin and half-width kana 0.5 em with ink inside the cell and accents matched to their
+base; Greek and Cyrillic 1 em, one scale per script; kana, kanji, `U+3000` and `℃` 1 em) are stated in
+[`fonts/README.md`](fonts/README.md) and measured by the font suites and the layout probe.
+
+### Shipped files
+
+SHA-256, so a rebuild can be compared rather than assumed:
+
+```
+8CCFB450952B204DEB8E5E855173C5DFC8B7C8696E2A502D648AED3EA3189A90  BMLPH-RoundGothic-Regular.woff2
+D3E4E86BD21598C682359696680222F1A2D0EB85B479AA5EA1C9333BA409034B  BMLPH-Sans-Bold.woff2
+E2F6F9E5A06D6860815572EB0DC59CEFDEA3D935C12CA56FC56776AB1E2F9092  BMLPH-Sans-cjk.woff2
+D4766A1AB7F00AA278A0612DCB845CEB6AE4659F450C5DCBEF8EC2715B0175A9  BMLPH-Sans-kana.woff2
+A384A8FFCD1CCDBF97E266C2EF4A74A2FA384ACD86CE22EC2174FE42A7B80FEF  BMLPH-Sans-latin-ph.woff2
+0757C3B454D9A319F43B52143A9D51F732EE55D5222FEFB90AEB2B1A783D5980  BMLPH-Sans-Regular.woff2
+9145E23C672EB3671400365C6EE19679D1E1A9B285597CF08E7A2FF85D245C64  BMLPH-Sans-symbols.woff2
+653FB440107459ED1E917ACF939D27A2C4D10ADBAA4E0F792C93B3C6460D994A  BMLPH-SansLite-Bold.woff2
+1551D7D53903C46102AF146EADDD5E01E22C0FDAB0D099A37621EAC899D515F6  BMLPH-SansLite-Regular.woff2
+```
+
+The desktop `.ttf` cuts are distributed separately on request; only the shipped `.woff2` files are listed.
+
+## What is deliberately absent
+
+- **Broadcaster content** — pages, carousels, EPG, images, audio. None of it.
+- **Capture-derived fixtures** — every fixture in `test/fixtures/` is hand-written, so the suite runs on
+  a clean clone.

@@ -1,21 +1,25 @@
 import css from "css";
-import { Resources, CachedFile, Profile, CachedFileMetadata } from "./resource";
-import { defaultCLUT } from "./default_clut";
-import { readCLUT } from "./clut";
-import { transpileCSS } from "./transpile_css";
-import { BML } from "./interface/DOM";
+import { Resources, CachedFile, CachedFileMetadata } from "./resource";
+import { Profile, profileLetter } from "./profile";
+import { broadcastWallClockToUnixMillis, parseBroadcastWallClock } from "./time_offset";
+import { findVideoElement } from "./media/media_type";
+import { defaultCLUTTable } from "./css/clut";
+import { readCLUT } from "./css/clut";
+import { transpileCSS } from "./css/transpile_css";
+import { BML } from "./dom/bml_dom";
 import { bmlToXHTMLFXP } from "./bml_to_xhtml";
-import { NPTReference, ResponseMessage } from "../server/ws_api";
+import { NPTReference, ResponseMessage } from "../protocol/messages";
 import { EventDispatcher, EventQueue } from "./event_queue";
 import { Interpreter } from "./interpreter/interpreter";
-import { BMLBrowserEventTarget, Indicator, InputApplication, KeyGroup, Profile as BMLBrowserProfile } from "./bml_browser";
-import { convertJPEG } from "./arib_jpeg";
-import { getTextDecoder } from "./text";
-import { DRCSGlyphs } from "./drcs";
+import { BMLBrowserEventTarget, Indicator, InputApplication, KeyGroup } from "./contracts";
+import { formatModuleRef, parseUsedKeyList } from "./format";
+import { convertJPEG } from "./media/arib_jpeg";
+import { getDeclaredTextDecoder } from "./text";
+import { DRCSGlyphs } from "./media/drcs";
 import { type Logger } from "./util/logger";
 
-import { defaultCSS } from "./default_css";
-import { defaultCProfileCSS } from "./default_c_css";
+import { defaultCSS } from "./css/default_css";
+import { defaultCProfileCSS } from "./css/default_c_css";
 
 export enum AribKeyCode {
     Up = 1,
@@ -174,15 +178,79 @@ export function keyCodeToAribKey(keyCode: string): AribKeyCode | -1 {
     }
 }
 
-type KeyProcessStatus = {
+export type KeyProcessStatus = {
     keyCode: AribKeyCode,
     isAccessKey: boolean,
+    /** When the DOWN was accepted (ms). A status older than a press means a lost UP, not a held key. */
+    startedAt: number,
 };
 
-function requestAnimationFrameAsync(): Promise<void> {
-    return new Promise<void>((resolve, _) => {
-        requestAnimationFrame((_time) => resolve());
+/**
+ * 3.1.1: what a new key DOWN does to a status that is still set.
+ *
+ * A status is set by `processKeyDown` and cleared by the matching `processKeyUp`. An UP can be lost —
+ * the page navigates, the event queue is reset on the way, the host drops it — and the old code then
+ * ignored every later key for the rest of the document's life (`if (keyProcessStatus != null) return`).
+ * ARIB keys are discrete presses, so the answer is always "take the new press"; the verdict only says
+ * what the log should call it.
+ */
+export function arbitrateKeyDown(held: KeyProcessStatus | undefined, keyCode: AribKeyCode, now: number):
+    { replaced: "none" | "re-press" | "lost-up", ageMs: number, heldKeyCode: AribKeyCode | null } {
+    if (held == null) {
+        return { replaced: "none", ageMs: 0, heldKeyCode: null };
+    }
+    return {
+        replaced: held.keyCode === keyCode ? "re-press" : "lost-up",
+        ageMs: Math.max(0, now - held.startedAt),
+        heldKeyCode: held.keyCode,
+    };
+}
+
+/**
+ * 3.1.1: what a key UP does to the status. The matching code releases it; any other code means the
+ * release of the held key was lost, so the held status is cleared rather than kept for ever.
+ */
+export function arbitrateKeyUp(held: KeyProcessStatus | undefined, keyCode: AribKeyCode):
+    "release" | "release-mismatch" | "nothing" {
+    if (held == null) {
+        return "nothing";
+    }
+    return held.keyCode === keyCode ? "release" : "release-mismatch";
+}
+
+export function requestAnimationFrameAsync(timeoutMillis = 100): Promise<void> {
+    return new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+            if (!settled) {
+                settled = true;
+                resolve();
+            }
+        };
+        requestAnimationFrame(() => finish());
+        // 3.0.0: a hidden, occluded or background window throttles or stops requestAnimationFrame, and
+        // this promise is awaited in the middle of loadDocument — the page then stays "loading" for
+        // ever even though every module arrived (a desktop host, ABS 3201: startup.bml still loading at
+        // 190 s with all 19 modules in at 14 s). The timer is the floor: normally rAF wins at ~16 ms,
+        // and a throttled document still settles instead of hanging the load.
+        setTimeout(finish, timeoutMillis);
     });
+}
+
+/**
+ * 3.1.0: run `callback` in the next animation frame, and say whether a frame will actually come.
+ *
+ * `requestAnimationFrame` runs only while the document is being rendered: a hidden, occluded or
+ * background window throttles or stops it (the same fact `requestAnimationFrameAsync` works around
+ * for the load itself). So "the callback ran" is the honest answer to "did this page reach the
+ * screen", and returning false (a host with no requestAnimationFrame) means it cannot have.
+ */
+export function onNextFrame(callback: () => void): boolean {
+    if (typeof requestAnimationFrame !== "function") {
+        return false;
+    }
+    requestAnimationFrame(callback);
+    return true;
 }
 
 type NPT = {
@@ -192,9 +260,75 @@ type NPT = {
     scaleNumerator: number,
 };
 
+/**
+ * P6: the charset a resource declares in its media type, if it declares one.
+ *
+ * This is where the declaration actually lives — the carousel's MIME parameters, not the XML
+ * prologue — so a page whose prologue says `UTF-8` and whose MIME says `charset=UTF-8` agrees with
+ * itself, and one that says nothing falls back to the profile exactly as before.
+ */
+function charsetOf(file: CachedFile | null | undefined): string | null {
+    const parameters = file?.contentType?.parameters;
+    if (parameters == null) {
+        return null;
+    }
+    for (const parameter of parameters) {
+        if (String(parameter.attribute ?? "").toLowerCase() === "charset") {
+            return parameter.value ?? null;
+        }
+    }
+    return null;
+}
+
 export type LaunchDocumentOptions = {
     withLink?: boolean,
 };
+
+/** P1: what a page is subscribed to, and whether each subscription has ever fired. */
+export type BeitemInspection = {
+    type: string,
+    /** module_ref or es_ref, as written in the markup */
+    ref: string | null,
+    subscribe: boolean,
+    hasHandler: boolean,
+    /** how many bevent handlers of this type have been invoked for this ref */
+    fired: number,
+};
+
+export type PageInspection = {
+    document: string | null,
+    requested: string | null,
+    phase: string,
+    phaseAgeMs: number,
+    detail: string | null,
+    /** the `resolution` the document declared, and the box the engine then laid out */
+    resolution: { declared: string | null, width: number, height: number, displayAspectRatio: string | null } | null,
+    profile: string,
+    /** true while the body still carries arib-loading: the engine is mid-parse */
+    bodyLoading: boolean,
+    /** the entry module has been delivered and startup was launched */
+    startupDelivered: boolean,
+    invisible: boolean | undefined,
+    elements: number,
+    beitems: BeitemInspection[],
+};
+
+/**
+ * Host-supplied policy for a single document: video-plane behaviour, key-input routing, error
+ * display and logging. Grouped into one object so the two adjacent booleans cannot be swapped by
+ * position, and so a new option does not lengthen the positional constructor.
+ */
+export interface ContentOptions {
+    /** Whether the receiver exposes a video plane at all. */
+    videoPlaneModeEnabled: boolean;
+    /** Whether pointer input is tunnelled into the video plane instead of the document. */
+    tunnelPointerToVideoPlaneEnabled: boolean;
+    /** The key-input sink for the application layer, when the host installs one. */
+    inputApplication?: InputApplication;
+    /** Host error display; defaults to the built-in on-screen message. */
+    showErrorMessage?: (title: string, message: string, code?: string) => void;
+    logger: Logger;
+}
 
 export class Content {
     private documentElement: HTMLElement;
@@ -210,6 +344,14 @@ export class Content {
     private readonly videoPlaneModeEnabled: boolean;
     private readonly tunnelPointerToVideoPlaneEnabled: boolean;
     private loaded = false;
+    /**
+     * 3.1.0: the current document has produced a frame since it was loaded. `invisible` says what the
+     * document asked for; this says whether it actually reached the screen. Cleared at every load and
+     * at exit, set by the first animation frame after the load dispatch (see `onNextFrame`).
+     */
+    private pagePainted = false;
+    /** P1: 起動の世代番号 (Content#startupDelivered と合わせて読み込み状態を表す) */
+    private launchToken = 0;
     private readonly inputApplication?: InputApplication;
     private npt?: NPT;
     private uaStyle?: HTMLStyleElement;
@@ -225,11 +367,7 @@ export class Content {
         videoContainer: HTMLElement,
         bmlEventTarget: BMLBrowserEventTarget,
         indicator: Indicator | undefined,
-        videoPlaneModeEnabled: boolean,
-        tunnelPointerToVideoPlaneEnabled: boolean,
-        inputApplication: InputApplication | undefined,
-        showErrorMessage: ((title: string, message: string, code?: string) => void) | undefined,
-        logger: Logger,
+        options: ContentOptions,
     ) {
         this.bmlDocument = bmlDocument;
         this.documentElement = documentElement;
@@ -240,11 +378,11 @@ export class Content {
         this.videoContainer = videoContainer;
         this.bmlEventTarget = bmlEventTarget;
         this.indicator = indicator;
-        this.videoPlaneModeEnabled = videoPlaneModeEnabled;
-        this.tunnelPointerToVideoPlaneEnabled = tunnelPointerToVideoPlaneEnabled;
-        this.inputApplication = inputApplication;
-        this.showErrorMessage = showErrorMessage ?? this.defaultShowErrorMessage.bind(this);
-        this.logger = logger;
+        this.videoPlaneModeEnabled = options.videoPlaneModeEnabled;
+        this.tunnelPointerToVideoPlaneEnabled = options.tunnelPointerToVideoPlaneEnabled;
+        this.inputApplication = options.inputApplication;
+        this.showErrorMessage = options.showErrorMessage ?? this.defaultShowErrorMessage.bind(this);
+        this.logger = options.logger;
 
         this.documentElement.addEventListener("keydown", (event) => {
             if (event.altKey || event.ctrlKey || event.metaKey) {
@@ -271,7 +409,7 @@ export class Content {
 
         this.resources.addEventListener("dataeventchanged", async (event) => {
             const { component, returnToEntryFlag } = event.detail;
-            this.logger.debug(`${this.logger.prefix}DataEventChanged`, event.detail);
+            this.logger.debug(`DataEventChanged`, event.detail);
             const { moduleId, componentId } = this.resources.parseURLEx(this.resources.activeDocument);
             if (moduleId == null || componentId == null) {
                 return;
@@ -312,8 +450,8 @@ export class Content {
                         // 引き戻しフラグによるエントリコンポーネントへの遷移の場合lockModuleOnMemoryでロックしたモジュールのロックが解除される TR-B14 第二分冊 表5-11
                         this.resources.unlockModules("lockModuleOnMemory");
                     }
-                    this.logger.error(`${this.logger.prefix}launch startup (DataEventChanged)`);
-                    this.launchStartup();
+                    this.logger.error(`launch startup (DataEventChanged)`);
+                    this.runLifecycle("launchStartup(DataEventChanged)", this.launchStartup());
                     return true;
                 }
                 return false;
@@ -327,7 +465,11 @@ export class Content {
                 if (componentId === this.resources.startupComponentId && moduleId === this.resources.startupModuleId) {
                     if (!this.loaded) {
                         this.loaded = true;
-                        this.resources.getProgramInfoAsync().then(_ => this.launchStartup());
+                        this.resources.getProgramInfoAsync().then((info) => {
+                            if (info != null) {
+                                this.runLifecycle("launchStartup(moduleupdated)", this.launchStartup());
+                            }
+                        });
                     }
                 }
             }
@@ -352,11 +494,11 @@ export class Content {
             if (currentComponentId == null) {
                 return;
             }
-            // 視聴中のコンポーネントが消滅
-            if (currentComponentId != null && !components.has(currentComponentId)) {
+            // 視聴中のコンポーネントが消滅 (currentComponentId is known non-null here)
+            if (!components.has(currentComponentId)) {
                 this.eventQueue.queueGlobalAsyncEvent(async () => {
                     this.resources.unlockModules();
-                    this.launchStartup();
+                    this.runLifecycle("launchStartup(component removed)", this.launchStartup());
                     return true;
                 });
                 this.eventQueue.processEventQueue();
@@ -372,14 +514,14 @@ export class Content {
                 (prevEntryPID != null && prevEntryPID !== currentEntryPID)) {
                 // エントリコンポーネントが消滅
                 if (currentEntryPID == null) {
-                    this.exitDocument();
+                    this.runLifecycle("exitDocument(entry component gone)", this.exitDocument());
                     return;
                 }
-                this.logger.error(`${this.logger.prefix}PID changed`, prevPID, currentPID, prevEntryPID, currentEntryPID);
+                this.logger.error(`PID changed`, prevPID, currentPID, prevEntryPID, currentEntryPID);
                 this.eventQueue.queueGlobalAsyncEvent(async () => {
                     this.resources.unlockModules();
                     this.resources.clearCache();
-                    this.launchStartup();
+                    this.runLifecycle("launchStartup(PID changed)", this.launchStartup());
                     return true;
                 });
                 this.eventQueue.processEventQueue();
@@ -387,8 +529,14 @@ export class Content {
         });
     }
 
-    private decodeText(input: Uint8Array): string {
-        return getTextDecoder(this.resources.profile)(input);
+    /**
+     * P6: decode with the charset the resource declares, falling back to the profile's default.
+     *
+     * `file` is optional because one caller has no resource at all — an event message's private data
+     * — and that is text the *stream* defined, not a document that carries a declaration.
+     */
+    private decodeText(input: Uint8Array, file?: CachedFile | null): string {
+        return getDeclaredTextDecoder(this.resources.profile, charsetOf(file))(input);
     }
 
     private _currentDateMode: number = 0;
@@ -406,7 +554,7 @@ export class Content {
 
     private tunnelPointerToVideoPlane() {
         const body = this.getBody()!;
-        const videoElement = body.querySelector("[arib-type=\"video/X-arib-mpeg2\"]");
+        const videoElement = findVideoElement(body);
         if (videoElement == null) {
             return;
         }
@@ -542,9 +690,14 @@ export class Content {
         }
         const xhtmlDocument = new DOMParser().parseFromString(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" lang="ja"></html>`, "application/xhtml+xml");
         const documentElement = xhtmlDocument.createElement("html");
+        // This innerHTML is not an XSS vector and must not be sanitised: a BML browser exists to parse
+        // the page markup it is sent. The element belongs to a detached DOMParser document (nothing
+        // executes there), and bmlToXHTMLFXP has already renamed <script>/<style>/<link> to arib-*,
+        // which the engine interprets itself rather than the browser. Sanitising would delete the
+        // page.
         documentElement.innerHTML = bmlToXHTMLFXP(data, this.resources.profile === Profile.TrProfileC);
         const p = Array.from(this.documentElement.childNodes).filter(x => x.nodeName.toLowerCase() === "body" || x.nodeName.toLowerCase() === "head");
-        const videoElementNew = documentElement.querySelector("[arib-type=\"video/X-arib-mpeg2\"]");
+        const videoElementNew = findVideoElement(documentElement);
         const prevBody = this.getBody();
         const newBody = documentElement.querySelector("body")!;
         prevBody?.setAttribute("arib-loading", "arib-loading");
@@ -556,7 +709,7 @@ export class Content {
                     const newStyle = document.createElement("style");
                     const res = await this.resources.fetchResourceAsync(href);
                     if (res != null) {
-                        newStyle.textContent = await transpileCSS(this.decodeText(res.data), { inline: false, clutReader: this.getCLUT.bind(this), convertUrl: this.convertCSSUrl.bind(this) });
+                        newStyle.textContent = await transpileCSS(this.decodeText(res.data, res), { inline: false, clutReader: this.getCLUT.bind(this), convertUrl: this.convertCSSUrl.bind(this) });
                         style.parentElement?.appendChild(newStyle);
                     }
                 }
@@ -632,6 +785,79 @@ export class Content {
         this.fonts.length = 0;
     }
 
+    /**
+     * 2.4.0: the pointer as the remote. The element at these coordinates (CSS px) that the profile would
+     * actually focus - the owner of the inherited `--nav-index` - or null.
+     *
+     * The page lives in a **closed shadow root**, so `document.elementFromPoint` stops at the shadow
+     * host and never sees a page element; the hit test runs on the root the page is in instead
+     * (`ShadowRoot.elementFromPoint`, which a desktop host measured as the working form).
+     *
+     * A hit element only counts when it carries a `--nav-index` (the property is inherited, so the
+     * element at the point may be a child of the owner); the owner is found with the same `findNavIndex`
+     * the remote uses. Accepting anything `isFocusable` - images, the host - sent TV5's Channel Guide
+     * click to the wrong item, so the nav-index is the rule, not focusability alone.
+     */
+    public elementAt(x: number, y: number): HTMLElement | null {
+        const root = this.documentElement.getRootNode() as ShadowRoot | Document;
+        const fromPoint = (root as unknown as { elementFromPoint?: (x: number, y: number) => Element | null }).elementFromPoint;
+        const stack = ((): (Element | null)[] => {
+            const layered = (root as unknown as { elementsFromPoint?: (x: number, y: number) => Element[] }).elementsFromPoint;
+            if (typeof layered === "function") {
+                return layered.call(root, x, y);
+            }
+            return typeof fromPoint === "function" ? [fromPoint.call(root, x, y)] : [document.elementFromPoint(x, y)];
+        })();
+        for (const hit of stack) {
+            if (hit == null || hit === this.documentElement || !(hit instanceof HTMLElement)) {
+                continue;
+            }
+            // --nav-index is inherited: read it at the point, let findNavIndex name the owner.
+            const navIndex = Number.parseInt(window.getComputedStyle(hit).getPropertyValue("--nav-index"), 10);
+            if (!Number.isFinite(navIndex)) {
+                continue;
+            }
+            const target = this.findNavIndex(navIndex);
+            if (target != null && this.isFocusable(target)) {
+                return target;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 2.4.0: the pointer as the remote. Focuses the element `elementAt` finds and does exactly what the
+     * Enter key does: `internalSetActive`, the same synchronous `click` event, `processEventQueue`, and
+     * an anchor's `href` (launch or fragment) - so `onfocus` precedes `onclick` and a link actually
+     * navigates, as on the box.
+     *
+     * Returns false when nothing nav-indexed is under the point, **including the page root**: a host's
+     * fallback must run rather than believe the page took the click (GMA has a single hidden element,
+     * so a click on the page body is not a click the page handles).
+     */
+    public clickAt(x: number, y: number): boolean {
+        const target = this.elementAt(x, y);
+        if (target == null) {
+            return false;
+        }
+        this.focusHelper(target);
+        const felem = BML.htmlElementToBMLHTMLElement(target, this.bmlDocument) as unknown as { internalSetActive?: (active: boolean) => void; href?: string } | null;
+        if (felem != null && typeof felem.internalSetActive === "function") {
+            felem.internalSetActive(true);
+        }
+        this.eventQueue.queueSyncEvent({ type: "click", target });
+        this.eventQueue.processEventQueue();
+        if (felem != null && typeof felem.href === "string" && felem.href !== "" && !felem.href.startsWith("#")) {
+            const href = felem.href;
+            // The document is going away, so this handler cannot act on it; a failed launch is logged
+            // rather than becoming an unhandled rejection.
+            this.launchDocument(href).catch((e) => this.logger.error(`launchDocument failed`, href, e));
+        } else if (felem != null && typeof felem.href === "string" && felem.href.startsWith("#")) {
+            this.focusFragment(felem.href);
+        }
+        return true;
+    }
+
     private _context: any = {};
 
     public get context() {
@@ -650,7 +876,7 @@ export class Content {
             });
             if (await this.eventQueue.executeEventHandler(onunload)) {
                 // readPersistentArray writePersistentArray unlockModuleOnMemoryEx unlockAllModulesOnMemoryしか呼び出せないので終了したらおかしい
-                this.logger.error(`${this.logger.prefix}onunload`);
+                this.logger.error(`onunload`);
                 return true;
             }
             this.eventDispatcher.resetCurrentEvent();
@@ -666,16 +892,21 @@ export class Content {
     public async exitDocument() {
         await this.unloadDocument();
         this.eventQueue.reset();
+        this.resources.abandonPendingProgramInfo("document exited");
         this.unloadAllDRCS();
         this.resources.unlockModules();
         this._context = { from: this.resources.activeDocument, to: null };
         this.resources.activeDocument = null;
+        this.resources.diagnostics.setPhase(++this.launchToken, "exited", null, null);
         this.bmlEventTarget.dispatchEvent<"invisible">(new CustomEvent("invisible", { detail: true }));
         const p = Array.from(this.documentElement.childNodes).filter(x => x.nodeName.toLowerCase() === "body" || x.nodeName.toLowerCase() === "head");
         for (const n of p) {
             n.remove();
         }
         this.loaded = false;
+        this.pagePainted = false;
+        // 3.1.1: a key held across an exit can never be released; the status is per document.
+        this.keyProcessStatus = undefined;
     }
 
     public async quitDocument() {
@@ -739,9 +970,26 @@ export class Content {
         });
     }
 
-    private async loadDocument(file: CachedFile, documentName: string): Promise<boolean> {
+    private async loadDocument(file: CachedFile, documentName: string, token: number): Promise<boolean> {
+        // A throw anywhere below would leave the phase at "parsing" with nothing in the scripts
+        // list, which is exactly the "why is this page stuck?" question the diagnostics exist for.
+        try {
+            return await this.loadDocumentInner(file, documentName, token);
+        } catch (e) {
+            this.logger.error(`loadDocument failed`, documentName, e);
+            this.resources.diagnostics.scriptError("run", documentName, e);
+            this.resources.diagnostics.setPhase(token, "failed", this.resources.activeDocument, documentName, e instanceof Error ? e.message : String(e));
+            return false;
+        }
+    }
+
+    private async loadDocumentInner(file: CachedFile, documentName: string, token: number): Promise<boolean> {
         await this.unloadDocument();
         this._context = { from: this.resources.activeDocument, to: documentName };
+        this.resources.diagnostics.setPhase(token, "parsing", documentName, documentName);
+        this.pagePainted = false;
+        // 3.1.1: a status left by the previous document would swallow this one's first key.
+        this.keyProcessStatus = undefined;
         this.bmlDocument._currentFocus = null;
         // 提示中の文書と同一サービス内の別コンポーネントへの遷移の場合lockModuleOnMemoryでロックしたモジュールのロックは解除される TR-B14 第二分冊 表5-11
         const { componentId: nextComponent } = this.resources.parseURLEx(documentName);
@@ -750,8 +998,9 @@ export class Content {
             this.resources.unlockModules("lockModuleOnMemory");
         }
         this.resources.activeDocument = documentName;
+        this.resources.documentCharset = charsetOf(file);
         await requestAnimationFrameAsync();
-        await this.loadDocumentToDOM(this.decodeText(file.data));
+        await this.loadDocumentToDOM(this.decodeText(file.data, file));
         this.loadObjects();
         this.eventQueue.reset();
         this.unloadAllDRCS();
@@ -777,27 +1026,16 @@ export class Content {
             aspectNum = 1;
             aspectDen = 2;
         }
+        // P1/P4: ページが宣言した解像度そのもの。ホストが「960x540で描いた」ではなく
+        // 「720x480と宣言された」を読めるようにする
+        this.resources.diagnostics.setResolution(resolution.length === 0 ? null : resolution, width, height, displayAspectRatio.length === 0 ? null : displayAspectRatio);
 
-        function mapProfile(profile: Profile | undefined): BMLBrowserProfile {
-            switch (profile) {
-                case Profile.TrProfileA:
-                    return "A";
-                case Profile.TrProfileC:
-                    return "C";
-                case Profile.BS:
-                    return "BS";
-                case Profile.CS:
-                    return "CS";
-                default:
-                    return "";
-            }
-        }
 
         this.bmlEventTarget.dispatchEvent<"load">(new CustomEvent("load", {
             detail: {
                 resolution: { width, height },
                 displayAspectRatio: { numerator: aspectNum, denominator: aspectDen },
-                profile: mapProfile(this.resources.profile),
+                profile: profileLetter(this.resources.profile),
             }
         }));
         body.style.maxWidth = width + "px";
@@ -808,17 +1046,27 @@ export class Content {
         this.documentElement.style.minWidth = width + "px";
         this.documentElement.style.maxHeight = height + "px";
         this.documentElement.style.minHeight = height + "px";
-        bmlBody.invisible = bmlBody.invisible;
+        bmlBody.internalDispatchInvisible();
+        // 3.1.0: `load` and `invisible` are dispatched here — the document is in the DOM and its styles
+        // resolve, but no frame of it has been painted yet (and its scripts have not run). This is the
+        // paint fact, once per document: it fires only when the host is actually rendering, so a hidden
+        // or occluded window never reaches it. That is how a host tells "loaded" from "on screen".
+        onNextFrame(() => {
+            if (token !== this.launchToken) {
+                return; // a newer document, or an exit, superseded this one
+            }
+            this.pagePainted = true;
+            this.bmlEventTarget.dispatchEvent<"presented">(new CustomEvent("presented"));
+        });
         const usedKeyList = bodyStyle.getPropertyValue("--used-key-list");
         this.bmlEventTarget.dispatchEvent<"usedkeylistchanged">(new CustomEvent("usedkeylistchanged", {
             detail: {
-                usedKeyList: new Set(usedKeyList.split(" ").filter((x): x is KeyGroup => {
-                    return x === "basic" || x === "numeric-tuning" || x === "data-button" || x === "special-1" || x === "special-2";
-                }))
+                usedKeyList: parseUsedKeyList(usedKeyList)
             }
         }));
         // フォーカスはonloadの前に当たるがonloadが実行されるまではイベントは実行されない
         // STD-B24 第二分冊(2/2) 第二編 付属1 5.1.3参照
+        this.resources.diagnostics.setPhase(token, "running", documentName, documentName);
         this.eventQueue.lockSyncEventQueue();
         let exit = false;
         let scriptCount = 0;
@@ -835,7 +1083,7 @@ export class Content {
                 if (src) {
                     const res = await this.resources.fetchResourceAsync(src);
                     if (res !== null) {
-                        if (exit = await this.interpreter.addScript(this.decodeText(res.data), src)) {
+                        if (exit = await this.interpreter.addScript(this.decodeText(res.data, res), src)) {
                             return true;
                         }
                     }
@@ -849,7 +1097,6 @@ export class Content {
             const body = this.getBody();
             const onload = body?.getAttribute("arib-onload");
             if (onload != null) {
-                this.logger.debug(`${this.logger.prefix}START ONLOAD`);
                 this.eventDispatcher.setCurrentEvent({
                     target: body,
                     type: "load",
@@ -858,26 +1105,28 @@ export class Content {
                     return true;
                 }
                 this.eventDispatcher.resetCurrentEvent();
-                this.logger.debug(`${this.logger.prefix}END ONLOAD`);
             }
             for (const beitem of this.documentElement.querySelectorAll("beitem[subscribe=\"subscribe\"]")) {
                 const bmlBeitem = BML.nodeToBMLNode(beitem, this.bmlDocument) as BML.BMLBeitemElement;
-                bmlBeitem.subscribe = bmlBeitem.subscribe;
+                // The attribute is the state, so re-arming is a direct call rather than an
+                // assignment that reads from the property it writes.
+                bmlBeitem.internalSetSubscribe(true);
             }
         } finally {
             if (!exit) {
                 this.eventQueue.unlockSyncEventQueue();
             }
         }
-        this.logger.debug(`${this.logger.prefix}START PROC EVQ`);
         if (await this.eventQueue.processEventQueue()) {
             return true;
         }
-        this.logger.debug(`${this.logger.prefix}END PROC EVQ`);
         if (this.tunnelPointerToVideoPlaneEnabled) {
             this.tunnelPointerToVideoPlane();
         }
         this.indicator?.setUrl(this.resources.activeDocument.replace(/(^https?:\/\/)[^/]+/, (_, g: string) => g + "…"), false);
+        // P1: ここまで来たら描画とスクリプトは終わっている。以降ページが止まっているなら
+        // 原因は読み込みではなく、待っているもの (ロック/表/イベント) の側にある
+        this.resources.diagnostics.setPhase(token, "ready", documentName, documentName);
         return false;
     }
 
@@ -896,18 +1145,13 @@ export class Content {
                 if (timeValue.length !== 14) {
                     return;
                 }
-                const year = Number.parseInt(timeValue.substring(0, 4));
-                const month = Number.parseInt(timeValue.substring(4, 6));
-                const day = Number.parseInt(timeValue.substring(6, 8));
-                const hour = Number.parseInt(timeValue.substring(8, 10));
-                const minute = Number.parseInt(timeValue.substring(10, 12));
-                const second = Number.parseInt(timeValue.substring(12, 14));
-                const date = new Date(year, month - 1, day, hour, minute, second);
-                const time = date.getTime();
-                // 放送日時は JST 固定なので、実行環境のタイムゾーンを経由して UTC 時刻へ変換する
-                const tz = date.getTimezoneOffset() * 60 * 1000;
-                const jst = 9 * 60 * 60 * 1000;
-                const jstTime = time - tz - jst;
+                const clock = parseBroadcastWallClock(timeValue);
+                if (clock == null) {
+                    return;
+                }
+                // C16: the page's absolute time is in the broadcast local time, which the stream
+                // declares in its TOT (PH +8, Japan +9); assuming JST put every PH timer an hour off.
+                const jstTime = broadcastWallClockToUnixMillis({ ...clock, offsetMinutes: this.resources.localTimeOffsetMinutes });
                 if (this.resources.currentTimeUnixMillis != null && jstTime <= this.resources.currentTimeUnixMillis) {
                     beitem.internalTimerFired = true;
                     this.eventDispatcher.dispatchTimerFiredEvent(0, elem);
@@ -930,29 +1174,85 @@ export class Content {
         });
     }
 
-    public launchDocument(documentName: string, options?: LaunchDocumentOptions) {
-        this.launchDocumentAsync(documentName, options);
-        return NaN;
-    }
-
     private async launchStartup(): Promise<boolean> {
-        const module = `arib-dc://-1.-1.-1/${this.resources.startupComponentId.toString(16).padStart(2, "0")}/${this.resources.startupModuleId.toString(16).padStart(4, "0")}`;
+        const module = `arib-dc://-1.-1.-1${formatModuleRef(this.resources.startupComponentId, this.resources.startupModuleId)}`;
         await this.resources.fetchResourceAsync(module);
         if (this.resources.fetchLockedResource(module + "/startup.bml")) {
-            await this.launchDocumentAsync(module + "/startup.bml");
+            await this.launchDocument(module + "/startup.bml");
             return true;
         } else if (this.resources.fetchLockedResource(module)) {
-            await this.launchDocumentAsync(module);
+            await this.launchDocument(module);
             return true;
         } else {
-            this.exitDocument();
+            await this.exitDocument();
         }
         return false;
     }
 
-    private async launchDocumentAsync(documentName: string, options?: LaunchDocumentOptions) {
+    /**
+     * Whether the pressed key belongs to a key group the page enabled through `--used-key-list`.
+     * `none` disables everything; an empty list leaves only the basic and data-button groups live
+     * (STD-B24 第二分冊(2/2) 第二編 付属1 5.1.3).
+     */
+    private isKeyGroupEnabled(key: AribKeyCode): boolean {
+        const body = this.getBody();
+        if (body == null) {
+            return false;
+        }
+        const usedKeyList = window.getComputedStyle(body).getPropertyValue("--used-key-list").split(" ").filter(x => x.length);
+        if (usedKeyList.length > 0 && usedKeyList[0] === "none") {
+            return false;
+        }
+        const keyGroup = (this.resources.profile === Profile.TrProfileC ? keyCodeToKeyGroupCProfile : keyCodeToKeyGroup).get(key);
+        if (keyGroup == null) {
+            return false;
+        }
+        if (usedKeyList.length === 0) {
+            return keyGroup === "basic" || keyGroup === "data-button";
+        }
+        return usedKeyList.some(x => x === keyGroup);
+    }
+
+    /**
+     * Runs one event handler with the synchronous queue locked. Returns true when the handler
+     * reported that execution ended (a navigation): the lock is then left held, because the
+     * incoming document owns the queue from that point.
+     */
+    private async runHandlerLocked(handler: string): Promise<boolean> {
+        let exit = false;
+        try {
+            this.eventQueue.lockSyncEventQueue();
+            exit = await this.eventQueue.executeEventHandler(handler);
+            return exit;
+        } finally {
+            if (!exit) {
+                this.eventQueue.unlockSyncEventQueue();
+            }
+        }
+    }
+
+    /**
+     * Runs a lifecycle step started from a listener or queued callback and records a failure.
+     * Without this an unexpected throw becomes an unhandled rejection that no diagnostics entry
+     * ever mentions, which is exactly the "page is stuck and nothing says why" case.
+     */
+    private runLifecycle(step: string, action: Promise<unknown>): void {
+        action.catch((e) => {
+            this.logger.error(`lifecycle step failed`, step, e);
+            this.resources.diagnostics.scriptError("run", step, e);
+        });
+    }
+
+    /**
+     * Starts a document transition; the promise settles when the new document has been launched.
+     * The ARIB-facing callers cannot await it — they throw to unwind the interpreter — so they
+     * attach a catch, which keeps a failed launch from becoming an unhandled rejection.
+     */
+    public async launchDocument(documentName: string, options?: LaunchDocumentOptions): Promise<void> {
         const withLink = options?.withLink ?? false;
-        this.logger.log(`${this.logger.prefix}%claunchDocument`, "font-size: 1.5em", documentName);
+        this.logger.log(`launchDocument`, documentName);
+        // P1: この起動の世代。入れ子の遷移が起きたら、外側の遅れて届いた書き込みは捨てる
+        const token = ++this.launchToken;
         this.eventQueue.discard();
         const { component, module, filename } = this.resources.parseURL(documentName);
         const componentId = Number.parseInt(component ?? "", 16);
@@ -971,36 +1271,51 @@ export class Content {
                     // > 受信機が非リンクを搭載していない場合、再選局相当の動作を行なう、または、遷移を行わずにリンク状態を継続する
                     // C 8.3.11.4 受信機の動作失敗時のガイドライン
                     // > ベースURIディレクトリに合致しないURIが指定された場合は、データ放送ブラウザは失敗動作とし、受信機はエラーメッセージを表示する
-                    this.logger.error(`${this.logger.prefix}base URI directory violation`);
+                    this.logger.error(`base URI directory violation`);
+                    this.resources.diagnostics.setPhase(token, "failed", this.resources.activeDocument, documentName, "base URI directory violation (E402)");
                     await this.fail("エラー", "ベースURIディレクトリエラー", "E402");
-                    return NaN;
+                    return;
                 }
                 normalizedDocument = new URL(documentName, this.resources.activeDocument).toString();
             } else {
-                this.logger.error(`${this.logger.prefix}failed to fetch document`, documentName);
+                this.logger.error(`failed to fetch document`, documentName);
+                this.resources.diagnostics.setPhase(token, "failed", this.resources.activeDocument, documentName, "not a carousel path, and internet content is not allowed here");
                 await this.quitDocument();
-                return NaN;
+                return;
             }
             this.resources.invalidateRemoteCache(documentName);
         } else if (filename != null) {
-            normalizedDocument = `/${componentId.toString(16).padStart(2, "0")}/${moduleId.toString(16).padStart(4, "0")}/${filename}`;
+            normalizedDocument = `${formatModuleRef(componentId, moduleId)}/${filename}`;
         } else {
-            normalizedDocument = `/${componentId.toString(16).padStart(2, "0")}/${moduleId.toString(16).padStart(4, "0")}`;
+            normalizedDocument = formatModuleRef(componentId, moduleId);
         }
         this.indicator?.setUrl(normalizedDocument.replace(/(^https?:\/\/)[^/]+/, (_, g: string) => g + "…"), true);
+        this.resources.diagnostics.setPhase(token, "fetching", this.resources.activeDocument, normalizedDocument);
         const res = await this.resources.fetchResourceAsync(documentName);
+        // 3.0.0: a newer launch superseded this one while the fetch was in flight. Without this check a
+        // stale launch still unloads the document and rewrites activeDocument, so the page that opens
+        // last wins regardless of which the user asked for (launchToken was captured but never compared).
+        if (token !== this.launchToken) {
+            this.logger.debug(`launchDocument: stale launch discarded`, documentName);
+            this.resources.diagnostics.setPhase(token, "superseded", this.resources.activeDocument, normalizedDocument);
+            return;
+        }
         if (res == null) {
+            this.resources.diagnostics.setPhase(token, "failed", this.resources.activeDocument, normalizedDocument, "document not found");
+            this.logger.error(`NOT FOUND`);
+            // fail() already performs the quit transition; awaiting it and then quitting again
+            // started the startup transition twice on a failed fetch.
             if (normalizedDocument.startsWith("http")) {
-                this.fail("ネットワークエラー", "文書の取得に失敗しました", "E400");
+                await this.fail("ネットワークエラー", "文書の取得に失敗しました", "E400");
+            } else {
+                await this.quitDocument();
             }
-            this.logger.error(`${this.logger.prefix}NOT FOUND`);
-            await this.quitDocument();
-            return NaN;
+            return;
         }
         const ad = this.resources.activeDocument;
-        await this.loadDocument(res, normalizedDocument);
-        this.logger.debug(`${this.logger.prefix}return `, ad, documentName);
-        return NaN;
+        await this.loadDocument(res, normalizedDocument, token);
+        this.logger.debug(`return `, ad, documentName);
+        return;
     }
 
     private findNavIndex(navIndex: number): HTMLElement | undefined {
@@ -1011,18 +1326,46 @@ export class Content {
 
     private keyProcessStatus?: KeyProcessStatus;
 
+    /**
+     * 3.1.1: which element a key handler runs on. A key event belongs to the focused element, but a
+     * page may put its handler on an ancestor — body is the common case — and with nothing focused the
+     * document is the only candidate. The nearest element carrying the attribute wins, so one press
+     * runs at most one handler (an already-handled event is not bubbled).
+     */
+    private keyHandlerTarget(from: HTMLElement | null | undefined, attribute: "onkeydown" | "onkeyup"): HTMLElement | null {
+        let node: HTMLElement | null | undefined = from;
+        while (node != null && node !== this.documentElement) {
+            if (node.getAttribute(attribute) != null) {
+                return node;
+            }
+            node = node.parentElement as HTMLElement | null;
+        }
+        const body = this.getBody() as HTMLElement | null;
+        if (body != null && body.getAttribute(attribute) != null) {
+            return body;
+        }
+        return from ?? body;
+    }
+
     public processKeyDown(k: AribKeyCode) {
         if (k === AribKeyCode.DataButton) {
             // データボタンの場合DataButtonPressedのみが発生する
             this.eventDispatcher.dispatchDataButtonPressedEvent();
             return;
         }
-        if (this.keyProcessStatus != null) {
-            return;
+        // 3.1.1: a status still set here means the previous UP was lost (a navigation resets the event
+        // queue, a host can drop the release). Never drop the new press: ARIB keys are discrete.
+        const now = Date.now();
+        const arbitration = arbitrateKeyDown(this.keyProcessStatus, k, now);
+        if (arbitration.replaced === "re-press") {
+            this.logger.warn(`key ${k} pressed again ${arbitration.ageMs} ms after its DOWN with no UP in between; taking it as a re-press`);
+        } else if (arbitration.replaced === "lost-up") {
+            this.logger.warn(`key ${arbitration.heldKeyCode} was still down ${arbitration.ageMs} ms after its DOWN when ${k} arrived; its UP was lost - clearing it and taking ${k}`);
         }
         const keyProcessStatus: KeyProcessStatus = {
             keyCode: k,
             isAccessKey: false,
+            startedAt: now,
         };
         this.keyProcessStatus = keyProcessStatus;
         let focusElement = this.bmlDocument.currentFocus?.["node"];
@@ -1053,28 +1396,11 @@ export class Content {
                 }
             }
         }
-        const body = this.getBody();
-        if (body == null) {
-            return;
-        }
-        const computedStyle = window.getComputedStyle(body);
-        const usedKeyList = computedStyle.getPropertyValue("--used-key-list").split(" ").filter(x => x.length);
-        if (usedKeyList.length && usedKeyList[0] === "none") {
-            return;
-        }
-        const keyGroup = (this.resources.profile === Profile.TrProfileC ? keyCodeToKeyGroupCProfile : keyCodeToKeyGroup).get(k);
-        if (keyGroup == null) {
-            return;
-        }
-        if (usedKeyList.length === 0) {
-            if (keyGroup !== "basic" && keyGroup !== "data-button") {
-                return;
-            }
-        } else if (!usedKeyList.some(x => x === keyGroup)) {
+        if (!this.isKeyGroupEnabled(k)) {
             return;
         }
         focusElement = this.bmlDocument.currentFocus?.["node"];
-        const target = focusElement;
+        const target = this.keyHandlerTarget(focusElement, "onkeydown");
         this.eventQueue.queueAsyncEvent(async () => {
             const onkeydown = target?.getAttribute("onkeydown");
             if (target != null && onkeydown) {
@@ -1083,16 +1409,8 @@ export class Content {
                     type: "keydown",
                     target,
                 });
-                let exit = false;
-                try {
-                    this.eventQueue.lockSyncEventQueue();
-                    if (exit = await this.eventQueue.executeEventHandler(onkeydown)) {
-                        return true;
-                    }
-                } finally {
-                    if (!exit) {
-                        this.eventQueue.unlockSyncEventQueue();
-                    }
+                if (await this.runHandlerLocked(onkeydown)) {
+                    return true;
                 }
                 this.eventDispatcher.resetCurrentEvent();
             }
@@ -1102,7 +1420,7 @@ export class Content {
                 const elem = this.documentElement.querySelector(`[accesskey="${accessKey}"]`) as HTMLElement;
                 if (elem != null && this.isFocusable(elem)) {
                     this.focusHelper(elem);
-                    this.logger.warn(`${this.logger.prefix}accesskey is half implemented.`);
+                    this.logger.warn(`accesskey is half implemented.`);
                     // [6] 疑似的にkeyup割り込み事象が発生 keyCode = アクセスキー
                     const onkeyup = elem.getAttribute("onkeyup");
                     if (onkeyup != null) {
@@ -1111,38 +1429,23 @@ export class Content {
                             type: "keyup",
                             target: elem,
                         });
-                        let exit = false;
-                        try {
-                            this.eventQueue.lockSyncEventQueue();
-                            if (exit = await this.eventQueue.executeEventHandler(onkeyup)) {
-                                return true;
-                            }
-                        } finally {
-                            if (!exit) {
-                                this.eventQueue.unlockSyncEventQueue();
-                            }
+                        if (await this.runHandlerLocked(onkeyup)) {
+                            return true;
                         }
                         this.eventDispatcher.resetCurrentEvent();
                     }
                     // [6] 疑似的にkeydown割り込み事象が発生 keyCode = 決定キー
                     const onkeydown = elem.getAttribute("onkeydown");
-                    k = AribKeyCode.Enter;
                     if (onkeydown != null) {
                         this.eventDispatcher.setCurrentIntrinsicEvent({
-                            keyCode: k as number,
+                            // A local rather than reassigning `k`: rewriting the parameter meant every
+                            // later branch saw Enter instead of the key the user actually pressed.
+                            keyCode: AribKeyCode.Enter as number,
                             type: "keydown",
                             target: elem,
                         });
-                        let exit = false;
-                        try {
-                            this.eventQueue.lockSyncEventQueue();
-                            if (exit = await this.eventQueue.executeEventHandler(onkeydown)) {
-                                return true;
-                            }
-                        } finally {
-                            if (!exit) {
-                                this.eventQueue.unlockSyncEventQueue();
-                            }
+                        if (await this.runHandlerLocked(onkeydown)) {
+                            return true;
                         }
                         this.eventDispatcher.resetCurrentEvent();
                     }
@@ -1168,12 +1471,15 @@ export class Content {
                     }
                 }
                 if (currentFocus instanceof BML.BMLAnchorElement && currentFocus.href != "") {
-                    if (!currentFocus.href.startsWith("#")) {
-                        if (this.launchDocument(currentFocus.href)) {
-                            return true;
-                        }
+                    const href = currentFocus.href;
+                    if (!href.startsWith("#")) {
+                        // The document is going away, so this handler cannot act on it; returning true
+                        // stops the current page's processing, and a failed launch is logged rather
+                        // than becoming an unhandled rejection.
+                        this.launchDocument(href).catch((e) => this.logger.error(`launchDocument failed`, href, e));
+                        return true;
                     } else {
-                        this.focusFragment(currentFocus.href);
+                        this.focusFragment(href);
                     }
                 }
             }
@@ -1186,6 +1492,9 @@ export class Content {
     private focusNextNavIndex(k: AribKeyCode, focusElement: HTMLElement) {
         let nextFocus = "";
         let nextFocusStyle = window.getComputedStyle(focusElement);
+        // Each hop is visited at most once: a --nav-* cycle of non-focusable elements (or an element
+        // pointing at itself) used to spin here forever on a keydown, hanging the main thread.
+        const visited = new Set<HTMLElement>();
         while (true) {
             if (k == AribKeyCode.Left) {
                 nextFocus = nextFocusStyle.getPropertyValue("--nav-left");
@@ -1199,7 +1508,8 @@ export class Content {
             const nextFocusIndex = parseInt(nextFocus);
             if (Number.isFinite(nextFocusIndex) && nextFocusIndex >= 0 && nextFocusIndex <= 32767) {
                 const next = this.findNavIndex(nextFocusIndex);
-                if (next != null) {
+                if (next != null && !visited.has(next)) {
+                    visited.add(next);
                     nextFocusStyle = window.getComputedStyle(next);
                     // 非表示要素であれば飛ばされる (STD-B24 第二分冊 (1/2 第二編) 5.4.13.3参照)
                     if (!this.isFocusable(next)) {
@@ -1243,57 +1553,34 @@ export class Content {
         }
         this.eventQueue.queueAsyncEvent(async () => {
             const keyProcessStatus = this.keyProcessStatus;
-            if (keyProcessStatus?.keyCode !== k) {
+            const arbitration = arbitrateKeyUp(keyProcessStatus, k);
+            if (arbitration === "nothing" || keyProcessStatus == null) {
                 return false;
-            } else {
-                this.keyProcessStatus = undefined;
             }
+            if (arbitration === "release-mismatch") {
+                // 3.1.1: the UP of the held key was lost; keeping the status would block every later key.
+                this.logger.warn(`key ${keyProcessStatus.keyCode} was still down when the release for ${k} arrived; its UP was lost - clearing the held key`);
+            }
+            this.keyProcessStatus = undefined;
             const currentFocus = this.bmlDocument.currentFocus;
-            if (currentFocus == null) {
-                return false;
-            }
-            const focusElement = currentFocus["node"];
-            const keyCode = keyProcessStatus.isAccessKey ? AribKeyCode.Enter : k;
-            if (keyCode === AribKeyCode.Enter) {
+            const focusElement = currentFocus?.["node"] as HTMLElement | null | undefined;
+            const keyCode = arbitration === "release" && keyProcessStatus.isAccessKey ? AribKeyCode.Enter : k;
+            if (keyCode === AribKeyCode.Enter && currentFocus != null) {
                 currentFocus.internalSetFocus(true);
             }
-            const body = this.getBody();
-            if (body == null) {
+            if (!this.isKeyGroupEnabled(keyCode)) {
                 return false;
             }
-            const computedStyle = window.getComputedStyle(body);
-            const usedKeyList = computedStyle.getPropertyValue("--used-key-list").split(" ").filter(x => x.length);
-            if (usedKeyList.length && usedKeyList[0] === "none") {
-                return false;
-            }
-            const keyGroup = (this.resources.profile === Profile.TrProfileC ? keyCodeToKeyGroupCProfile : keyCodeToKeyGroup).get(keyCode);
-            if (keyGroup == null) {
-                return false;
-            }
-            if (usedKeyList.length === 0) {
-                if (keyGroup !== "basic" && keyGroup !== "data-button") {
-                    return false;
-                }
-            } else if (!usedKeyList.some(x => x === keyGroup)) {
-                return false;
-            }
-            const onkeyup = focusElement.getAttribute("onkeyup");
-            if (onkeyup) {
+            const upTarget = this.keyHandlerTarget(focusElement, "onkeyup");
+            const onkeyup = upTarget?.getAttribute("onkeyup");
+            if (upTarget != null && onkeyup) {
                 this.eventDispatcher.setCurrentIntrinsicEvent({
                     keyCode,
                     type: "keyup",
-                    target: focusElement,
+                    target: upTarget,
                 });
-                let exit = false;
-                try {
-                    this.eventQueue.lockSyncEventQueue();
-                    if (exit = await this.eventQueue.executeEventHandler(onkeyup)) {
-                        return true;
-                    }
-                } finally {
-                    if (!exit) {
-                        this.eventQueue.unlockSyncEventQueue();
-                    }
+                if (await this.runHandlerLocked(onkeyup)) {
+                    return true;
                 }
                 this.eventDispatcher.resetCurrentEvent();
             }
@@ -1319,7 +1606,7 @@ export class Content {
 
     private async getCLUT(clutUrl: string): Promise<css.Declaration[]> {
         const res = await this.resources.fetchResourceAsync(clutUrl);
-        let clut = defaultCLUT;
+        let clut = defaultCLUTTable();
         if (res?.data) {
             clut = readCLUT(res.data, this.logger);
         }
@@ -1342,7 +1629,7 @@ export class Content {
             res.blobUrl.set("BT.709", bt709);
             return bt709;
         } catch (e) {
-            this.logger.error(`${this.logger.prefix}failed to decode image`, url, e);
+            this.logger.error(`failed to decode image`, url, e);
             return undefined;
         }
     }
@@ -1350,7 +1637,7 @@ export class Content {
     private loadObjects() {
         this.documentElement.querySelectorAll("object").forEach(obj => {
             const adata = obj.getAttribute("arib-data");
-            BML.nodeToBMLNode(obj, this.bmlDocument).data = adata!;
+            BML.nodeToBMLNode(obj, this.bmlDocument).data = adata;
         });
         if (this.resources.profile === Profile.TrProfileC) {
             this.documentElement.querySelectorAll("img").forEach(obj => {
@@ -1419,7 +1706,7 @@ export class Content {
                             scaleDenominator: nptReference.scaleDenominator,
                             scaleNumerator: nptReference.scaleNumerator,
                         };
-                        this.logger.debug(`${this.logger.prefix}NPTReferred`, this.npt);
+                        this.logger.debug(`NPTReferred`, this.npt);
                     }
                     const nptReferred = this.documentElement.querySelectorAll("beitem[type=\"NPTReferred\"][subscribe=\"subscribe\"]");
                     for (const beitemNative of Array.from(nptReferred)) {
@@ -1433,7 +1720,7 @@ export class Content {
                         const es_ref = beitem.esRef;
                         // STD-B24的には未指定の時現在のコンポーネントだけど運用規定的には独立したコンポーネントで伝送される
                         let componentId = activeComponentId;
-                        if (es_ref != null) {
+                        if (es_ref != null && es_ref !== "") {
                             const esRefComponentId = this.resources.parseURLEx(es_ref).componentId;
                             if (esRefComponentId != null) {
                                 componentId = esRefComponentId;
@@ -1481,7 +1768,7 @@ export class Content {
                     return;
                 }
                 let componentId = activeComponentId;
-                if (es_ref != null) {
+                if (es_ref != null && es_ref !== "") {
                     const esRefComponentId = this.resources.parseURLEx(es_ref).componentId;
                     if (esRefComponentId != null) {
                         componentId = esRefComponentId;
@@ -1523,7 +1810,7 @@ export class Content {
                     }
                     beitem.internalMessageVersion.set(eventMessageId, eventMessageVersion);
                     const privateData = this.decodeText(Uint8Array.from(event.privateDataByte));
-                    this.logger.debug(`${this.logger.prefix}EventMessageFired`, eventMessageId, eventMessageVersion, privateData);
+                    this.logger.debug(`EventMessageFired`, eventMessageId, eventMessageVersion, privateData);
                     this.eventQueue.queueAsyncEvent(async () => {
                         this.eventDispatcher.setCurrentBeventEvent({
                             type: "EventMessageFired",
@@ -1554,6 +1841,62 @@ export class Content {
         this.bmlDocument.internalLoadDRCS(glyphs);
     }
 
+    /**
+     * P1: the page as the host can see it — what document is up, what phase it is in, and every
+     * beitem subscription with the number of times its handler actually ran. A subscription that
+     * has never fired is the single most common reason a page sits on 読み込み中, and before this
+     * the host had no way to tell it apart from a page that simply looks like that.
+     */
+    public inspect(): PageInspection {
+        const diagnostics = this.resources.diagnostics;
+        const events = diagnostics.describeEvents();
+        const key = (ref: string | null): string | null => {
+            if (ref == null || ref.length === 0) {
+                return null;
+            }
+            const { componentId, moduleId } = this.resources.parseURLEx(ref);
+            return componentId != null && moduleId != null
+                ? `${componentId.toString(16)}/${moduleId.toString(16)}`
+                : ref.toLowerCase();
+        };
+        const beitems: BeitemInspection[] = [];
+        for (const node of Array.from(this.documentElement.querySelectorAll("beitem"))) {
+            const elem = node as HTMLElement;
+            const type = elem.getAttribute("type") ?? "";
+            const ref = elem.getAttribute("module_ref") ?? elem.getAttribute("es_ref");
+            const refKey = key(ref);
+            let fired = 0;
+            for (const record of events) {
+                if (record.type === type && key(record.target) === refKey) {
+                    fired++;
+                }
+            }
+            beitems.push({
+                type,
+                ref,
+                subscribe: elem.getAttribute("subscribe") === "subscribe",
+                hasHandler: elem.getAttribute("onoccur") != null,
+                fired,
+            });
+        }
+        const phase = diagnostics.describePhase();
+        const body = this.getBody();
+        return {
+            document: this.resources.activeDocument,
+            requested: phase.requested,
+            phase: phase.phase,
+            phaseAgeMs: phase.ageMs,
+            detail: phase.detail,
+            resolution: diagnostics.describeResolution(),
+            profile: profileLetter(this.resources.profile),
+            bodyLoading: body?.hasAttribute("arib-loading") ?? false,
+            startupDelivered: this.loaded,
+            invisible: this.invisible,
+            elements: this.documentElement.querySelectorAll("*").length,
+            beitems,
+        };
+    }
+
     public addDRCSFont(font: FontFace) {
         this.fonts.push(font);
         document.fonts.add(font);
@@ -1565,6 +1908,15 @@ export class Content {
             return undefined;
         }
         return (BML.nodeToBMLNode(body, this.bmlDocument) as BML.BMLBodyElement).invisible;
+    }
+
+    /**
+     * 3.1.0: a frame of the current document has actually been produced. False until then, false on a
+     * host that cannot paint at all, and false while a hidden or occluded window stops
+     * requestAnimationFrame. `invisible` answers a different question (what the document asked for).
+     */
+    public get painted(): boolean {
+        return this.pagePainted;
     }
 
     private defaultShowErrorMessage(title: string, message: string, code?: string): void {

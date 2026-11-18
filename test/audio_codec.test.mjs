@@ -1,0 +1,38 @@
+// C11/C12 - the audio codec is what the bytes say, not what the PMT label says.
+// Measured 2026-11-01 on the PH band: 485.143 (ALLTV) carries ADTS (FF F1 4C 80) under a
+// stream_type of 0x11 (LATM), and two muxes carry non-ADTS payloads under 0x0F (ADTS).
+import test from "node:test";
+import assert from "node:assert/strict";
+import { codecForStreamType, isAudioStreamType, sniffAudioCodec } from "../dist/protocol/audio_codec.js";
+
+test("the four audio signatures are told apart", () => {
+    assert.equal(sniffAudioCodec([0xff, 0xf1, 0x4c, 0x80]), "adts", "ALLTV's bytes");
+    assert.equal(sniffAudioCodec([0xff, 0xfc, 0x84, 0x00]), "mp2", "MPEG-1 Layer II");
+    assert.equal(sniffAudioCodec([0x56, 0xe0, 0xf9, 0xfb]), "latm", "LOAS/LATM");
+    assert.equal(sniffAudioCodec([0x0b, 0x77, 0x00, 0x00]), "ac3", "AC-3");
+    assert.equal(sniffAudioCodec([0x21, 0x1d, 0x47, 0x8c]), null, "no sync word in the window");
+    // OpenDTV-MOD's correction: a PES can begin mid-frame; the sync word is later in the payload.
+    assert.equal(sniffAudioCodec([0x8c, 0x85, 0x98, 0xa2, 0x11, 0x22, 0xff, 0xf1, 0x4c, 0x80]), "adts", "mid-frame ADTS");
+    assert.equal(sniffAudioCodec([0x00]), null, "too short");
+});
+
+test("the audio stream types are the four the band uses", () => {
+    for (const t of [0x03, 0x04, 0x0f, 0x11]) {
+        assert.equal(isAudioStreamType(t), true, `0x${t.toString(16)} is audio`);
+    }
+    for (const t of [0x1b, 0x0d, 0x06, 0x0b]) {
+        assert.equal(isAudioStreamType(t), false, `0x${t.toString(16)} is not audio`);
+    }
+});
+
+test("the label the PMT claims is mapped for comparison", () => {
+    assert.equal(codecForStreamType(0x03), "mp2");
+    assert.equal(codecForStreamType(0x04), "mp2");
+    assert.equal(codecForStreamType(0x0f), "adts");
+    assert.equal(codecForStreamType(0x11), "latm");
+    assert.equal(codecForStreamType(0x1b), null);
+    // ALLTV: 0x11 claims LATM, the bytes are ADTS - the host should be told they disagree.
+    assert.notEqual(codecForStreamType(0x11), sniffAudioCodec([0xff, 0xf1, 0x4c, 0x80]));
+    // 503.143/557.143: 0x11 claims LATM and the bytes are LATM - agreement.
+    assert.equal(codecForStreamType(0x11), sniffAudioCodec([0x56, 0xe0, 0xf9, 0xfb]));
+});

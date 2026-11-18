@@ -65,9 +65,11 @@ const onesegVideoContainer = document.querySelector(".oneseg-video-container") a
 // BML文書が入る要素
 const contentElement = browserElement.querySelector(".data-broadcasting-browser-content") as HTMLElement;
 // BML用フォント
-const roundGothic: BMLBrowserFontFace = { source: "url('/KosugiMaru-Regular.woff2'), local('MS Gothic')" };
-const boldRoundGothic: BMLBrowserFontFace = { source: "url('/KosugiMaru-Bold.woff2'), local('MS Gothic')" };
-const squareGothic: BMLBrowserFontFace = { source: "url('/Kosugi-Regular.woff2'), local('MS Gothic')" };
+// 2.4.0: the shipped PH faces. BML-PH Sans is the profile default; swap the URLs for
+// BMLPH-RoundGothic-Regular.woff2 to see the Kosugi/maru look instead.
+const roundGothic: BMLBrowserFontFace = { source: "url('/BMLPH-Sans-Regular.woff2'), local('MS Gothic')" };
+const boldRoundGothic: BMLBrowserFontFace = { source: "url('/BMLPH-Sans-Bold.woff2'), local('MS Gothic')" };
+const squareGothic: BMLBrowserFontFace = { source: "url('/BMLPH-Sans-Regular.woff2'), local('MS Gothic')" };
 
 // リモコン
 const remoteControl = new RemoteControl(document.getElementById("remote-control")!, browserElement.querySelector(".remote-control-receiving-status")!, browserElement.querySelector(".remote-control-networking-status") as HTMLElement);
@@ -87,25 +89,17 @@ const apiIP: IP = {
         return 1;
     },
     async transmitTextDataOverIP(uri, body) {
-        try {
-            const res = await window.fetch("/api/post/" + uri, {
-                method: "POST",
-                body,
-            });
-            return { resultCode: 1, statusCode: res.status.toString(), response: new Uint8Array(await res.arrayBuffer()) };
-        } catch {
-            return { resultCode: NaN, statusCode: "", response: new Uint8Array() };
-        }
+        const res = await window.fetch("/api/post/" + uri, {
+            method: "POST",
+            body,
+        });
+        return { status: res.status, headers: res.headers, body: new Uint8Array(await res.arrayBuffer()) };
     },
     async get(uri) {
-        try {
-            const res = await window.fetch("/api/get/" + uri, {
-                method: "GET",
-            });
-            return { statusCode: res.status, headers: res.headers, response: new Uint8Array(await res.arrayBuffer()) };
-        } catch {
-            return {};
-        }
+        const res = await window.fetch("/api/get/" + uri, {
+            method: "GET",
+        });
+        return { status: res.status, headers: res.headers, body: new Uint8Array(await res.arrayBuffer()) };
     },
     async confirmIPNetwork(destination, isICMP, timeoutMillis) {
         try {
